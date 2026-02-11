@@ -56,12 +56,17 @@ export function UploadBook() {
   if (step === 'upload') {
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-lg p-8">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-white/20">
           <div className="text-center mb-8">
-            <div className="bg-indigo-100 rounded-full p-6 w-fit mx-auto mb-4">
-              <Upload className="size-12 text-indigo-600" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full blur-xl opacity-50" />
+              <div className="relative bg-gradient-to-br from-purple-500 to-pink-500 rounded-full p-6 w-fit mx-auto mb-4 shadow-lg">
+                <Upload className="size-12 text-white" />
+              </div>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Upload Your Book</h2>
+            <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              Upload Your Book
+            </h2>
             <p className="text-gray-600">
               Upload a text file or paste your book content to get started
             </p>
@@ -69,7 +74,7 @@ export function UploadBook() {
 
           <div className="space-y-6">
             {/* File Upload */}
-            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors">
+            <div className="border-2 border-dashed border-purple-300 rounded-xl p-8 text-center hover:border-purple-500 hover:bg-purple-50/50 transition-all duration-300">
               <input
                 type="file"
                 accept=".txt"
@@ -81,11 +86,13 @@ export function UploadBook() {
                 htmlFor="file-upload"
                 className="cursor-pointer flex flex-col items-center"
               >
-                <BookOpen className="size-12 text-gray-400 mb-3" />
+                <div className="bg-gradient-to-br from-purple-100 to-pink-100 p-4 rounded-full mb-3">
+                  <BookOpen className="size-12 text-purple-600" />
+                </div>
                 <p className="font-medium text-gray-700 mb-1">
                   Click to upload a text file
                 </p>
-                <p className="text-sm text-gray-500">.txt files only</p>
+                <p className="text-sm text-gray-500">you can upload .pdf, .epub, .txt</p>
               </label>
             </div>
 
@@ -114,7 +121,7 @@ export function UploadBook() {
             <button
               onClick={handleTextUpload}
               disabled={!bookContent.trim()}
-              className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed transform hover:scale-[1.02] duration-300"
             >
               Continue
             </button>
@@ -126,12 +133,17 @@ export function UploadBook() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-white/20">
         <div className="text-center mb-8">
-          <div className="bg-indigo-100 rounded-full p-6 w-fit mx-auto mb-4">
-            <Calendar className="size-12 text-indigo-600" />
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-400 rounded-full blur-xl opacity-50" />
+            <div className="relative bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full p-6 w-fit mx-auto mb-4 shadow-lg">
+              <Calendar className="size-12 text-white" />
+            </div>
           </div>
-          <h2 className="text-2xl font-bold mb-2">Book Details</h2>
+          <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Book Details
+          </h2>
           <p className="text-gray-600">
             Tell us about your book to create a personalized reading plan
           </p>
@@ -209,7 +221,7 @@ export function UploadBook() {
             </button>
             <button
               type="submit"
-              className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
+              className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg transform hover:scale-[1.02] duration-300"
             >
               Create Reading Plan
             </button>

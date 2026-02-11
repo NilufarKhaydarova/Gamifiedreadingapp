@@ -34,9 +34,9 @@ export interface UserProfile {
   onboardingComplete: boolean;
 }
 
-const BOOK_KEY = 'readquest_book';
-const PROGRESS_KEY = 'readquest_progress';
-const PROFILE_KEY = 'readquest_profile';
+const BOOK_KEY = 'booklify_book';
+const PROGRESS_KEY = 'booklify_progress';
+const PROFILE_KEY = 'booklify_profile';
 
 export function saveBook(book: Book): void {
   localStorage.setItem(BOOK_KEY, JSON.stringify(book));

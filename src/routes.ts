@@ -8,6 +8,7 @@ import { Achievements } from "./components/Achievements";
 import { Onboarding } from "./components/Onboarding";
 import { AudioPlayer } from "./components/AudioPlayer";
 import { VoiceChatBot } from "./components/VoiceChatBot";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 export const router = createBrowserRouter([
   {
@@ -16,14 +17,20 @@ export const router = createBrowserRouter([
   },
   {
     path: "/",
-    Component: Root,
+    Component: ProtectedRoute,
     children: [
-      { index: true, Component: Dashboard },
-      { path: "upload", Component: UploadBook },
-      { path: "plan", Component: ReadingPlan },
-      { path: "chat", Component: VoiceChatBot },
-      { path: "achievements", Component: Achievements },
-      { path: "audio", Component: AudioPlayer },
+      {
+        path: "/",
+        Component: Root,
+        children: [
+          { index: true, Component: Dashboard },
+          { path: "upload", Component: UploadBook },
+          { path: "plan", Component: ReadingPlan },
+          { path: "chat", Component: VoiceChatBot },
+          { path: "achievements", Component: Achievements },
+          { path: "audio", Component: AudioPlayer },
+        ],
+      },
     ],
   },
 ]);

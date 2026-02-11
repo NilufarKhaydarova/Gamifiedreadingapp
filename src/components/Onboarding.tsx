@@ -37,7 +37,7 @@ export function Onboarding() {
             <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-full w-fit mx-auto mb-4">
               <Sparkles className="size-12 text-white" />
             </div>
-            <h1 className="text-3xl font-bold mb-2">Welcome to ReadQuest!</h1>
+            <h1 className="text-3xl font-bold mb-2">Welcome to Booklify!</h1>
             <p className="text-gray-600">
               Let's personalize your reading experience
             </p>

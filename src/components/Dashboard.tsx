@@ -64,56 +64,68 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Level Card */}
-      <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg p-6 text-white">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/20 backdrop-blur-sm rounded-full p-3">
-              <Zap className="size-8" />
+      {/* Level Card with Enhanced Gradient */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-amber-400 via-orange-500 to-rose-600 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-[1.02] transition-all duration-300">
+        {/* Animated gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent animate-pulse" />
+        
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 backdrop-blur-sm rounded-full p-3 shadow-lg">
+                <Zap className="size-8 text-white drop-shadow-lg" />
+              </div>
+              <div>
+                <p className="text-amber-100 text-sm font-medium">Reader Level</p>
+                <p className="text-4xl font-bold drop-shadow-lg">{progress?.level || 1}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-amber-100 text-sm">Reader Level</p>
-              <p className="text-3xl font-bold">{progress?.level || 1}</p>
+            <div className="text-right bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg">
+              <p className="text-amber-100 text-sm">XP Points</p>
+              <p className="text-2xl font-bold">{progress?.xp || 0} / {xpForNextLevel}</p>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-amber-100 text-sm">XP</p>
-            <p className="text-xl font-bold">{progress?.xp || 0} / {xpForNextLevel}</p>
+          <div className="bg-white/20 backdrop-blur-sm rounded-full h-4 overflow-hidden shadow-inner">
+            <div
+              className="bg-gradient-to-r from-white to-amber-100 h-full rounded-full transition-all duration-500 shadow-lg"
+              style={{ width: `${xpProgress}%` }}
+            />
           </div>
+          <p className="text-amber-100 text-sm mt-2 font-medium">
+            ⚡ {Math.round(xpForNextLevel - (progress?.xp || 0))} XP until Level {(progress?.level || 1) + 1}
+          </p>
         </div>
-        <div className="bg-white/20 rounded-full h-3 overflow-hidden">
-          <div
-            className="bg-white h-full rounded-full transition-all duration-500"
-            style={{ width: `${xpProgress}%` }}
-          />
-        </div>
-        <p className="text-amber-100 text-sm mt-2">
-          {Math.round(xpForNextLevel - (progress?.xp || 0))} XP until Level {(progress?.level || 1) + 1}
-        </p>
       </div>
 
-      {/* Current Book Card */}
-      <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl shadow-lg p-6 text-white">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <p className="text-indigo-200 text-sm mb-1">Currently Reading</p>
-            <h2 className="text-2xl font-bold mb-1">{book.title}</h2>
-            <p className="text-indigo-200">by {book.author}</p>
+      {/* Current Book Card with Enhanced Gradient */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-[1.01] transition-all duration-300">
+        {/* Animated shimmer effect */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 animate-shimmer" />
+        
+        <div className="relative z-10">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-indigo-200 text-sm mb-1 font-medium">Currently Reading</p>
+              <h2 className="text-3xl font-bold mb-1 drop-shadow-lg">{book.title}</h2>
+              <p className="text-indigo-200">by {book.author}</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg">
+              <p className="text-sm text-indigo-200">Day</p>
+              <p className="text-3xl font-bold">{progress?.currentDay || 1}/{progress?.totalDays || 1}</p>
+            </div>
           </div>
-          <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2">
-            <p className="text-sm text-indigo-200">Day</p>
-            <p className="text-2xl font-bold">{progress?.currentDay || 1}/{progress?.totalDays || 1}</p>
-          </div>
-        </div>
 
-        {/* Progress Bar */}
-        <div className="bg-white/20 rounded-full h-3 mb-2 overflow-hidden">
-          <div
-            className="bg-white h-full rounded-full transition-all duration-500"
-            style={{ width: `${progressPercentage}%` }}
-          />
+          {/* Progress Bar */}
+          <div className="bg-white/20 backdrop-blur-sm rounded-full h-4 mb-2 overflow-hidden shadow-inner">
+            <div
+              className="bg-gradient-to-r from-white via-indigo-100 to-white h-full rounded-full transition-all duration-500 shadow-lg"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+          <p className="text-sm text-indigo-200 font-medium">
+            📖 {Math.round(progressPercentage)}% Complete
+          </p>
         </div>
-        <p className="text-sm text-indigo-200">{Math.round(progressPercentage)}% Complete</p>
       </div>
 
       {/* Stats Grid */}
