@@ -176,27 +176,33 @@ code_sign_if_enabled() {
 }
 
 if [[ "$CONFIGURATION" == "Debug" ]]; then
-  install_framework "${BUILT_PRODUCTS_DIR}/ReachabilitySwift/Reachability.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/app_links/app_links.framework"
-  install_framework "${BUILT_PRODUCTS_DIR}/connectivity_plus/connectivity_plus.framework"
-  install_framework "${BUILT_PRODUCTS_DIR}/flutter_local_notifications/flutter_local_notifications.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/audio_session/audio_session.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/flutter_tts/flutter_tts.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/just_audio/just_audio.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/shared_preferences_foundation/shared_preferences_foundation.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/speech_to_text_macos/speech_to_text_macos.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/sqflite_darwin/sqflite_darwin.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/url_launcher_macos/url_launcher_macos.framework"
 fi
 if [[ "$CONFIGURATION" == "Profile" ]]; then
-  install_framework "${BUILT_PRODUCTS_DIR}/ReachabilitySwift/Reachability.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/app_links/app_links.framework"
-  install_framework "${BUILT_PRODUCTS_DIR}/connectivity_plus/connectivity_plus.framework"
-  install_framework "${BUILT_PRODUCTS_DIR}/flutter_local_notifications/flutter_local_notifications.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/audio_session/audio_session.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/flutter_tts/flutter_tts.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/just_audio/just_audio.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/shared_preferences_foundation/shared_preferences_foundation.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/speech_to_text_macos/speech_to_text_macos.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/sqflite_darwin/sqflite_darwin.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/url_launcher_macos/url_launcher_macos.framework"
 fi
 if [[ "$CONFIGURATION" == "Release" ]]; then
-  install_framework "${BUILT_PRODUCTS_DIR}/ReachabilitySwift/Reachability.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/app_links/app_links.framework"
-  install_framework "${BUILT_PRODUCTS_DIR}/connectivity_plus/connectivity_plus.framework"
-  install_framework "${BUILT_PRODUCTS_DIR}/flutter_local_notifications/flutter_local_notifications.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/audio_session/audio_session.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/flutter_tts/flutter_tts.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/just_audio/just_audio.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/shared_preferences_foundation/shared_preferences_foundation.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/speech_to_text_macos/speech_to_text_macos.framework"
+  install_framework "${BUILT_PRODUCTS_DIR}/sqflite_darwin/sqflite_darwin.framework"
   install_framework "${BUILT_PRODUCTS_DIR}/url_launcher_macos/url_launcher_macos.framework"
 fi
 if [ "${COCOAPODS_PARALLEL_CODE_SIGN}" == "true" ]; then

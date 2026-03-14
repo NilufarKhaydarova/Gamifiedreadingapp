@@ -10,6 +10,7 @@
 #endif
 #endif
 
+#import "SpeechToTextPlugin.h"
 
 FOUNDATION_EXPORT double speech_to_textVersionNumber;
 FOUNDATION_EXPORT const unsigned char speech_to_textVersionString[];
