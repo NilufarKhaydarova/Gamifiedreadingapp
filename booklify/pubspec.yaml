@@ -1,0 +1,74 @@
+name: booklify
+description: "Booklify - A gamified reading app that makes reading feel like tending a living garden"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management - Riverpod for Flutter-first approach
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+
+  # Backend - Leverage existing Supabase
+  supabase_flutter: ^2.3.4
+
+  # AI - OpenAI integration
+  openai_dart: ^0.3.0
+
+  # Storage - Local database and preferences
+  sqflite: ^2.3.0
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.1
+
+  # UI & Animations
+  flutter_svg: ^2.0.9
+  lottie: ^3.0.0
+  cached_network_image: ^3.3.0
+  shimmer: ^3.0.0
+
+  # Navigation
+  go_router: ^13.0.0
+
+  # Audio & Voice
+  flutter_tts: ^3.8.5
+  speech_to_text: ^6.6.0
+  just_audio: ^0.9.36
+
+  # HTTP & API
+  dio: ^5.4.0
+
+  # Utilities
+  uuid: ^4.3.1
+  intl: ^0.19.0
+  freezed_annotation: ^2.4.1
+  flutter_dotenv: ^5.1.0
+
+  # JSON Serialization
+  json_annotation: ^4.8.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Code Generation
+  build_runner: ^2.4.7
+  riverpod_generator: ^2.3.9
+  freezed: ^2.4.6
+  json_serializable: ^6.7.1
+
+  # Linting
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/images/
+    - assets/animations/
+    - assets/icons/
