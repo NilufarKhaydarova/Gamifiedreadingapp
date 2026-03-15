@@ -15,9 +15,10 @@ Future<void> main() async {
   // Method 1: Load from file system (works on Android/macOS/development)
   try {
     await dotenv.load(fileName: '.env');
+    debugPrint('✅ .env loaded from file system');
     envLoaded = true;
   } catch (e) {
-    // Silent fail
+    debugPrint('⚠️ File system load failed: $e');
   }
 
   // Method 2: Load from assets (works on iOS)
@@ -37,25 +38,40 @@ Future<void> main() async {
           }
         }
       }
+      debugPrint('✅ .env loaded from assets bundle');
       envLoaded = true;
     } catch (e) {
-      // Silent fail
+      debugPrint('⚠️ Assets load failed: $e');
     }
   }
 
-  // Initialize Supabase only if credentials are available
-  final supabaseKey = ApiKeys.supabaseAnonKey;
+  if (!envLoaded) {
+    debugPrint('❌ Could not load .env file - app will run in demo mode');
+  }
 
+  // Debug: Check what keys are available
+  final supabaseKey = ApiKeys.supabaseAnonKey;
+  final openaiKey = ApiKeys.openaiApiKey;
+  debugPrint('🔑 Supabase URL: ${ApiKeys.supabaseUrl}');
+  debugPrint('🔑 Supabase key present: ${supabaseKey.isNotEmpty}');
+  debugPrint('🔑 OpenAI key present: ${openaiKey.isNotEmpty}');
+
+  // Initialize Supabase only if credentials are available
   try {
     if (supabaseKey.isNotEmpty) {
+      debugPrint('🔧 Initializing Supabase...');
       await Supabase.initialize(
         url: ApiKeys.supabaseUrl,
         anonKey: supabaseKey,
-        debug: false, // Turn off debug logging to prevent on-screen display
+        debug: false, // Keep Supabase internal logs off screen
       );
+      debugPrint('✅ Supabase initialized successfully!');
+    } else {
+      debugPrint('⚠️ Supabase key is empty, skipping initialization');
     }
-  } catch (e) {
-    // Continue in demo mode if Supabase fails to initialize
+  } catch (e, stackTrace) {
+    debugPrint('❌ Supabase initialization failed: $e');
+    debugPrint('📚 Stack trace: $stackTrace');
   }
 
   runApp(
