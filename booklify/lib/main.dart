@@ -9,6 +9,21 @@ import 'app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Set up global error handlers to prevent errors from showing on screen
+  FlutterError.onError = (details) {
+    // Log to console only
+    debugPrint('Flutter Error: ${details.exception}');
+    debugPrint('Stack trace: ${details.stack}');
+  };
+
+  // Catch async errors not caught by FlutterError.onError
+  PlatformDispatcher.instance.onError = (error, stack) {
+    // Log to console only
+    debugPrint('Async Error: $error');
+    debugPrint('Stack trace: $stack');
+    return true; // Return true to prevent error from showing on screen
+  };
+
   // Load environment variables - try multiple methods for iOS compatibility
   bool envLoaded = false;
 
