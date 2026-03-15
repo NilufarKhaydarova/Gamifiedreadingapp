@@ -10,7 +10,7 @@ void main() async {
 
   // Try to load environment variables, but don't fail if missing
   try {
-    await dotenv.load(fileName: '.env');
+    await dotenv.load(fileName: 'booklify/.env');
   } catch (e) {
     // .env file not found - will use default values
   }
