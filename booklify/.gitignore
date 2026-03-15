@@ -32,6 +32,7 @@ migrate_working_dir/
 # Environment variables
 .env
 .env.local
+assets/.env
 
 # Symbolication related
 app.*.symbols
