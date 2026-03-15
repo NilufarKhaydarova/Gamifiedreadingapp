@@ -99,11 +99,14 @@ class SupabaseService {
     return _client
         .from('reading_progress')
         .stream(primaryKey: const ['id'])
-        .eq('user_id', userId)
-        .eq('book_id', bookId)
         .map((event) {
-          if (event.isEmpty) return null;
-          final data = event.first;
+          // Filter for matching user_id and book_id
+          final filtered = event.where((data) =>
+            data['user_id'] == userId && data['book_id'] == bookId
+          ).toList();
+
+          if (filtered.isEmpty) return null;
+          final data = filtered.first;
           return Progress(
             id: data['id'] ?? '',
             userId: data['user_id'] ?? '',
