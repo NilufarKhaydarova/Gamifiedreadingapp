@@ -8,14 +8,28 @@ import 'app.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
-  await dotenv.load(fileName: '.env');
+  // Try to load environment variables, but don't fail if missing
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    // .env file not found - will use default values
+    print('Note: .env file not found. Using default configuration.');
+  }
 
-  // Initialize Supabase
-  await Supabase.initialize(
-    url: ApiKeys.supabaseUrl,
-    anonKey: ApiKeys.supabaseAnonKey,
-  );
+  // Initialize Supabase only if credentials are available
+  try {
+    if (ApiKeys.supabaseAnonKey.isNotEmpty) {
+      await Supabase.initialize(
+        url: ApiKeys.supabaseUrl,
+        anonKey: ApiKeys.supabaseAnonKey,
+      );
+    } else {
+      print('Note: Supabase credentials not configured. Running in demo mode.');
+    }
+  } catch (e) {
+    print('Supabase initialization error: $e');
+    print('Continuing in demo mode...');
+  }
 
   runApp(
     const ProviderScope(
