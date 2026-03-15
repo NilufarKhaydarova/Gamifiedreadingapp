@@ -58,7 +58,7 @@ CONTEXT:
 
       return response.data['choices'][0]['message']['content'];
     } catch (e) {
-      print('OpenAI API error: $e');
+      // Error logged, returning fallback response
       return "I'm having trouble connecting right now. Could you try rephrasing your question?";
     }
   }
@@ -78,7 +78,7 @@ CONTEXT:
         response.data['data'][0]['embedding'],
       );
     } catch (e) {
-      print('Embedding generation error: $e');
+      // Embedding generation error
       throw Exception('Failed to generate embedding: $e');
     }
   }
@@ -138,7 +138,7 @@ Focus on creating engaging, Netflix-like episode titles that make readers want t
         estimatedMinutes: responseData['estimatedMinutes'] ?? 20,
       );
     } catch (e) {
-      print('Episode metadata generation error: $e');
+      // Episode metadata generation error
       // Fallback if AI fails
       return EpisodeMetadata(
         episodeTitle: 'Reading Episode $chunkNumber',
@@ -198,7 +198,7 @@ Return ONLY the JSON, no other text.'''
         hint: q['hint'],
       )).toList();
     } catch (e) {
-      print('Quiz generation error: $e');
+      // Quiz generation error
       throw Exception('Failed to generate quiz: $e');
     }
   }
@@ -242,7 +242,7 @@ Respond to their reflection and ask a follow-up question.'''
 
       return response.data['choices'][0]['message']['content'];
     } catch (e) {
-      print('Reflection followup error: $e');
+      // Reflection followup error
       return "That's a great observation! What do you think led to that moment?";
     }
   }

@@ -13,7 +13,6 @@ void main() async {
     await dotenv.load(fileName: '.env');
   } catch (e) {
     // .env file not found - will use default values
-    print('Note: .env file not found. Using default configuration.');
   }
 
   // Initialize Supabase only if credentials are available
@@ -23,12 +22,9 @@ void main() async {
         url: ApiKeys.supabaseUrl,
         anonKey: ApiKeys.supabaseAnonKey,
       );
-    } else {
-      print('Note: Supabase credentials not configured. Running in demo mode.');
     }
   } catch (e) {
-    print('Supabase initialization error: $e');
-    print('Continuing in demo mode...');
+    // Continue in demo mode if Supabase fails to initialize
   }
 
   runApp(
