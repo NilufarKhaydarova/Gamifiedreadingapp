@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart' as models;
 import '../models/progress.dart';
@@ -16,32 +17,37 @@ class SupabaseService {
     required String password,
     required String displayName,
   }) async {
-    final authResponse = await _client.auth.signUp(
-      email: email,
-      password: password,
-      data: {
+    try {
+      final authResponse = await _client.auth.signUp(
+        email: email,
+        password: password,
+        data: {
+          'display_name': displayName,
+        },
+      );
+
+      if (authResponse.user == null) {
+        throw Exception('Sign up failed');
+      }
+
+      // Create user profile
+      await _client.from('users').insert({
+        'id': authResponse.user!.id,
+        'email': email,
         'display_name': displayName,
-      },
-    );
+        'created_at': DateTime.now().toIso8601String(),
+      });
 
-    if (authResponse.user == null) {
-      throw Exception('Sign up failed');
+      return models.User(
+        id: authResponse.user!.id,
+        email: email,
+        displayName: displayName,
+        createdAt: DateTime.now(),
+      );
+    } catch (e) {
+      debugPrint('❌ Sign up error: $e');
+      rethrow;
     }
-
-    // Create user profile
-    await _client.from('users').insert({
-      'id': authResponse.user!.id,
-      'email': email,
-      'display_name': displayName,
-      'created_at': DateTime.now().toIso8601String(),
-    });
-
-    return models.User(
-      id: authResponse.user!.id,
-      email: email,
-      displayName: displayName,
-      createdAt: DateTime.now(),
-    );
   }
 
   Future<models.User> signIn({
