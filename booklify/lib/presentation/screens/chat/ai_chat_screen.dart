@@ -5,13 +5,13 @@ import '../../../data/services/openai_service.dart' as openai_service;
 class AIChatScreen extends StatefulWidget {
   final Book book;
   final int currentPage;
-  final BookChunk currentChunk;
+  final BookChunk? currentChunk;
 
   const AIChatScreen({
     super.key,
     required this.book,
-    required this.currentPage,
-    required this.currentChunk,
+    this.currentPage = 0,
+    this.currentChunk,
   });
 
   @override

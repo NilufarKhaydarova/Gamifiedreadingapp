@@ -2,71 +2,128 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/progress.dart';
 import '../../data/models/book.dart';
 import '../../widgets/garden/tree_painter.dart';
+import 'auth_provider.dart';
 
-// Progress Provider
-final progressProvider = StateProvider<Progress?>((ref) {
-  return null;
-});
+// ─── Current Book Provider ────────────────────────────────────────────────────
+// Set by LibraryScreen when user picks a book.
 
-// Current Book Provider
-final currentBookProvider = StateProvider<Book?>((ref) {
-  return null;
-});
+final currentBookProvider = StateProvider<Book?>((ref) => null);
 
-// Garden Weather Provider - calculates weather based on reading streak
+// ─── Books List Provider ──────────────────────────────────────────────────────
+
+class BooksNotifier extends AsyncNotifier<List<Book>> {
+  @override
+  Future<List<Book>> build() async {
+    final user = ref.watch(authUserProvider);
+    if (user == null) return [];
+    final db = ref.read(databaseServiceProvider);
+    return await db.getBooks(user.id);
+  }
+
+  Future<void> addBook(Book book) async {
+    final user = ref.read(authUserProvider);
+    if (user == null) return;
+    final db = ref.read(databaseServiceProvider);
+    await db.saveBook(book, user.id);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateChunks(String bookId, List<BookChunk> chunks) async {
+    final db = ref.read(databaseServiceProvider);
+    await db.updateBookChunks(bookId, chunks);
+    ref.invalidateSelf();
+  }
+
+  Future<void> deleteBook(String bookId) async {
+    final db = ref.read(databaseServiceProvider);
+    await db.deleteBook(bookId);
+    ref.invalidateSelf();
+  }
+
+  Future<void> refresh() async {
+    ref.invalidateSelf();
+  }
+}
+
+final booksProvider =
+    AsyncNotifierProvider<BooksNotifier, List<Book>>(() => BooksNotifier());
+
+// ─── Progress Provider ────────────────────────────────────────────────────────
+
+class ProgressNotifier extends AsyncNotifier<Progress?> {
+  @override
+  Future<Progress?> build() async {
+    final user = ref.watch(authUserProvider);
+    final book = ref.watch(currentBookProvider);
+    if (user == null || book == null) return null;
+    final db = ref.read(databaseServiceProvider);
+    return await db.getOrCreateProgress(user.id, book.id,
+        totalDays: book.chunks.isNotEmpty ? book.chunks.length : 30);
+  }
+
+  Future<void> completeDay() async {
+    final current = state.value;
+    if (current == null) return;
+
+    final updated = current.completeDay();
+    final db = ref.read(databaseServiceProvider);
+    await db.saveProgress(updated);
+    state = AsyncData(updated);
+
+    // Check achievements
+    final user = ref.read(authUserProvider);
+    if (user != null) {
+      await db.checkAndUnlockAchievements(user.id, updated);
+    }
+  }
+
+  Future<void> addXP(int amount) async {
+    final current = state.value;
+    if (current == null) return;
+    final updated = current.addXP(amount);
+    final db = ref.read(databaseServiceProvider);
+    await db.saveProgress(updated);
+    state = AsyncData(updated);
+  }
+
+  Future<void> refresh() async {
+    ref.invalidateSelf();
+  }
+}
+
+final progressProvider =
+    AsyncNotifierProvider<ProgressNotifier, Progress?>(() => ProgressNotifier());
+
+// ─── Garden Weather Provider ──────────────────────────────────────────────────
+
 final gardenWeatherProvider = Provider<GardenWeather>((ref) {
-  final progress = ref.watch(progressProvider);
+  final progressAsync = ref.watch(progressProvider);
 
-  if (progress == null || progress.completedDays.isEmpty) {
-    return GardenWeather.cloudy;
-  }
+  return progressAsync.when(
+    data: (progress) {
+      if (progress == null || progress.completedDays.isEmpty) {
+        return GardenWeather.cloudy;
+      }
+      final lastReadDate =
+          DateTime.tryParse(progress.completedDays.last);
+      if (lastReadDate == null) return GardenWeather.cloudy;
 
-  final lastReadDate = DateTime.tryParse(progress.completedDays.last);
-  if (lastReadDate == null) return GardenWeather.cloudy;
-
-  final daysSinceReading = DateTime.now().difference(lastReadDate).inDays;
-
-  if (daysSinceReading == 0) {
-    return GardenWeather.sunny;
-  } else if (daysSinceReading == 1) {
-    return GardenWeather.cloudy;
-  } else {
-    return GardenWeather.stormy;
-  }
+      final daysSince = DateTime.now().difference(lastReadDate).inDays;
+      if (daysSince == 0) return GardenWeather.sunny;
+      if (daysSince == 1) return GardenWeather.cloudy;
+      return GardenWeather.stormy;
+    },
+    loading: () => GardenWeather.cloudy,
+    error: (_, __) => GardenWeather.cloudy,
+  );
 });
 
-// Progress Notifier for managing progress state
-class ProgressNotifier extends StateNotifier<Progress?> {
-  ProgressNotifier() : super(null);
+// ─── Daily Challenge Provider ─────────────────────────────────────────────────
 
-  void updateProgress(Progress progress) {
-    state = progress;
-  }
-
-  void completeDay(Progress progress) {
-    final updated = progress.completeDay();
-    state = updated;
-  }
-}
-
-// Book Notifier for managing book state
-class BookNotifier extends StateNotifier<Book?> {
-  BookNotifier() : super(null);
-
-  void setCurrentBook(Book book) {
-    state = book;
-  }
-
-  void updateBook(Book book) {
-    state = book;
-  }
-}
-
-// Providers for notifiers
-final progressNotifierProvider = StateNotifierProvider<ProgressNotifier, Progress?>((ref) {
-  return ProgressNotifier();
-});
-
-final bookNotifierProvider = StateNotifierProvider<BookNotifier, Book?>((ref) {
-  return BookNotifier();
+final dailyChallengeProvider =
+    FutureProvider<Map<String, dynamic>>((ref) async {
+  final user = ref.watch(authUserProvider);
+  if (user == null) return {};
+  final db = ref.read(databaseServiceProvider);
+  return await db.getDailyChallenge(user.id);
 });

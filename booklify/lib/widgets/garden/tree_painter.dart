@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 /// Custom painter that creates the signature growing tree visualization
 /// This is the emotional heart of Booklify - every reading session grows the tree
@@ -355,7 +354,7 @@ class TreePainter extends CustomPainter {
   void _drawStar(Canvas canvas, Offset center, double radius, Paint paint) {
     final path = Path();
     const points = 5;
-    const innerRadius = radius * 0.4;
+    final innerRadius = radius * 0.4;
 
     for (int i = 0; i < points * 2; i++) {
       final r = i % 2 == 0 ? radius : innerRadius;

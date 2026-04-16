@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/progress.dart';
 import '../../../data/models/book.dart';
 import '../../../widgets/garden/tree_painter.dart';
+import '../../providers/garden_provider.dart';
+import '../reading/reading_session_screen.dart';
 
 class ReadingGardenScreen extends ConsumerStatefulWidget {
   const ReadingGardenScreen({super.key});
 
   @override
-  ConsumerState<ReadingGardenScreen> createState() => _ReadingGardenScreenState();
+  ConsumerState<ReadingGardenScreen> createState() =>
+      _ReadingGardenScreenState();
 }
 
 class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
@@ -20,15 +23,13 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
   void initState() {
     super.initState();
     _treeController = AnimationController(
-      duration: Duration(seconds: 2),
+      duration: const Duration(seconds: 2),
       vsync: this,
     );
     _weatherController = AnimationController(
-      duration: Duration(seconds: 20),
+      duration: const Duration(seconds: 20),
       vsync: this,
-    )..repeat(); // Continuous weather animation
-
-    // Start tree growth animation
+    )..repeat();
     _treeController.forward();
   }
 
@@ -43,6 +44,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
   Widget build(BuildContext context) {
     final progressAsync = ref.watch(progressProvider);
     final weather = ref.watch(gardenWeatherProvider);
+    final book = ref.watch(currentBookProvider);
 
     return Scaffold(
       body: Container(
@@ -60,26 +62,24 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
               Expanded(
                 child: progressAsync.when(
                   data: (progress) {
-                    final bookAsync = ref.watch(currentBookProvider);
-                    return bookAsync.when(
-                      data: (book) {
-                        return SingleChildScrollView(
-                          child: Column(
-                            children: [
-                              _buildGardenView(context, progress),
-                              _buildStatsRow(context, progress),
-                              _buildBookPreview(context, book, progress),
-                              SizedBox(height: 20),
-                            ],
-                          ),
-                        );
-                      },
-                      loading: () => Center(child: CircularProgressIndicator()),
-                      error: (_, __) => Center(child: Text('Error loading book')),
+                    if (progress == null) {
+                      return _buildNoBookState(context);
+                    }
+                    return SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _buildGardenView(context, progress),
+                          _buildStatsRow(context, progress),
+                          _buildBookPreview(context, book, progress),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
                     );
                   },
-                  loading: () => Center(child: CircularProgressIndicator()),
-                  error: (error, __) => Center(child: Text('Error loading progress')),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, __) =>
+                      Center(child: Text('Error: $error')),
                 ),
               ),
             ],
@@ -89,68 +89,104 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
     );
   }
 
-  Widget _buildHeader(BuildContext context, AsyncValue<Progress> progressAsync) {
-    return progressAsync.when(
-      data: (progress) {
-        return Padding(
-          padding: EdgeInsets.all(20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'My Reading Garden',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+  Widget _buildNoBookState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.eco, size: 80, color: Colors.white.withOpacity(0.7)),
+            const SizedBox(height: 24),
+            Text(
+              'Your garden is waiting',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Add a book from your Library to start growing your reading garden.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.white70,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(
+      BuildContext context, AsyncValue<Progress?> progressAsync) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'My Reading Garden',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Nurture your mind, grow your garden',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Nurture your mind, grow your garden',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.white70,
                       ),
-                    ),
-                  ],
                 ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.local_fire_department, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text(
-                      '${progress.completedDays.length} days',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        );
-      },
-      loading: () => SizedBox.shrink(),
-      error: (_, __) => SizedBox.shrink(),
+          progressAsync.when(
+            data: (progress) => Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.local_fire_department,
+                      color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${progress?.streakDays ?? 0} days',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildGardenView(BuildContext context, Progress progress) {
-    final growthStage = progress.currentDay / progress.totalDays;
+    final growthStage = progress.totalDays > 0
+        ? progress.currentDay / progress.totalDays
+        : 0.0;
 
     return GestureDetector(
       onTap: () => _showGardenDetails(context, progress),
       child: Container(
-        margin: EdgeInsets.all(20),
+        margin: const EdgeInsets.all(20),
         height: 400,
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.1),
@@ -159,7 +195,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
               blurRadius: 20,
-              offset: Offset(0, 10),
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -178,7 +214,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
 
   Widget _buildStatsRow(BuildContext context, Progress progress) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
           Expanded(
@@ -190,17 +226,17 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
               color: Colors.amber,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: _buildStatCard(
               context,
               icon: Icons.bolt,
               label: 'XP',
-              value: '${progress.xp}/${progress.level * 100}',
+              value: '${progress.xp}',
               color: Colors.orange,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: _buildStatCard(
               context,
@@ -223,7 +259,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
     required Color color,
   }) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.2),
         borderRadius: BorderRadius.circular(16),
@@ -232,10 +268,10 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
       child: Column(
         children: [
           Icon(icon, color: color, size: 24),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -243,24 +279,26 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
           ),
           Text(
             label,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBookPreview(BuildContext context, Book book, Progress progress) {
-    final currentChunk = book.chunks.isNotEmpty && progress.currentDay <= book.chunks.length
-        ? book.chunks[progress.currentDay - 1]
-        : null;
+  Widget _buildBookPreview(
+      BuildContext context, Book? book, Progress progress) {
+    BookChunk? currentChunk;
+    if (book != null &&
+        book.chunks.isNotEmpty &&
+        progress.currentDay > 0 &&
+        progress.currentDay <= book.chunks.length) {
+      currentChunk = book.chunks[progress.currentDay - 1];
+    }
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20),
-      padding: EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(16),
@@ -268,54 +306,57 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Today\'s Episode',
+          const Text(
+            "Today's Episode",
             style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500),
           ),
-          SizedBox(height: 8),
-          if (currentChunk != null)
+          const SizedBox(height: 8),
+          if (currentChunk != null) ...[
             Text(
               currentChunk.episodeTitle,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
-            )
-          else
-            Text(
-              'No active episode',
-              style: TextStyle(
-                color: Colors.white60,
-                fontSize: 18,
-              ),
             ),
-          if (currentChunk != null) ...[
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               currentChunk.keyIdea,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 14,
                 fontStyle: FontStyle.italic,
               ),
             ),
-          ],
-          SizedBox(height: 16),
+          ] else
+            const Text(
+              'No active episode — pick a book in your Library',
+              style: TextStyle(color: Colors.white60, fontSize: 16),
+            ),
+          const SizedBox(height: 16),
           ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/reading');
-            },
-            icon: Icon(Icons.play_arrow),
-            label: 'Start Reading',
+            onPressed: currentChunk != null && book != null
+                ? () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ReadingSessionScreen(
+                          chunk: currentChunk!,
+                          book: book,
+                        ),
+                      ),
+                    )
+                : null,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Start Reading'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
-              minimumSize: Size(double.infinity, 48),
+              minimumSize: const Size(double.infinity, 48),
+              disabledBackgroundColor: Colors.green.withOpacity(0.4),
             ),
           ),
         ],
@@ -326,40 +367,22 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
   List<Color> _getWeatherColors(GardenWeather weather) {
     switch (weather) {
       case GardenWeather.sunny:
-        return [
-          Color(0xFF87CEEB), // Sky blue
-          Color(0xFFE0F7FA), // Light cyan
-        ];
+        return [const Color(0xFF87CEEB), const Color(0xFFE0F7FA)];
       case GardenWeather.cloudy:
-        return [
-          Color(0xFFB0BEC5), // Blue grey
-          Color(0xFFCFD8DC), // Light grey
-        ];
+        return [const Color(0xFFB0BEC5), const Color(0xFFCFD8DC)];
       case GardenWeather.stormy:
-        return [
-          Color(0xFF546E7A), // Dark blue grey
-          Color(0xFF78909C), // Medium grey
-        ];
+        return [const Color(0xFF546E7A), const Color(0xFF78909C)];
     }
   }
 
   GardenWeather _getWeatherFromProgress(Progress progress) {
-    if (progress.completedDays.isEmpty) {
-      return GardenWeather.cloudy;
-    }
-
+    if (progress.completedDays.isEmpty) return GardenWeather.cloudy;
     final lastReadDate = DateTime.tryParse(progress.completedDays.last);
     if (lastReadDate == null) return GardenWeather.cloudy;
-
-    final daysSinceReading = DateTime.now().difference(lastReadDate).inDays;
-
-    if (daysSinceReading == 0) {
-      return GardenWeather.sunny;
-    } else if (daysSinceReading == 1) {
-      return GardenWeather.cloudy;
-    } else {
-      return GardenWeather.stormy;
-    }
+    final daysSince = DateTime.now().difference(lastReadDate).inDays;
+    if (daysSince == 0) return GardenWeather.sunny;
+    if (daysSince == 1) return GardenWeather.cloudy;
+    return GardenWeather.stormy;
   }
 
   void _showGardenDetails(BuildContext context, Progress progress) {
@@ -367,14 +390,15 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _GardenDetailsSheet(progress: progress),
+      builder: (_) => _GardenDetailsSheet(progress: progress),
     );
   }
 }
 
+// ─── Garden Details Bottom Sheet ─────────────────────────────────────────────
+
 class _GardenDetailsSheet extends StatelessWidget {
   final Progress progress;
-
   const _GardenDetailsSheet({required this.progress});
 
   @override
@@ -382,30 +406,48 @@ class _GardenDetailsSheet extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildHandle(context),
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           Padding(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Garden Stats',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                SizedBox(height: 16),
-                _buildStatRow(context, 'Reading Streak', '${progress.completedDays.length} days'),
-                _buildStatRow(context, 'Current Level', '${progress.level}'),
-                _buildStatRow(context, 'Total XP', '${progress.xp}'),
-                _buildStatRow(context, 'Progress', '${(progress.progressPercent * 100).toInt()}%'),
-                SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Close'),
+                Text('Garden Stats',
+                    style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 16),
+                _statRow(context, 'Reading Streak',
+                    '${progress.streakDays} days'),
+                _statRow(context, 'Days Completed',
+                    '${progress.completedDays.length}'),
+                _statRow(context, 'Current Level', '${progress.level}'),
+                _statRow(context, 'Total XP', '${progress.xp}'),
+                _statRow(
+                    context,
+                    'Progress',
+                    '${(progress.progressPercent * 100).toInt()}%'),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
                 ),
               ],
             ),
@@ -415,36 +457,18 @@ class _GardenDetailsSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildHandle(BuildContext context) {
-    return Center(
-      child: Container(
-        margin: EdgeInsets.only(top: 12),
-        width: 40,
-        height: 4,
-        decoration: BoxDecoration(
-          color: Colors.grey[300],
-          borderRadius: BorderRadius.circular(2),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatRow(BuildContext context, String label, String value) {
+  Widget _statRow(BuildContext context, String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text(label, style: Theme.of(context).textTheme.bodyLarge),
+          Text(value,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge
+                  ?.copyWith(fontWeight: FontWeight.bold)),
         ],
       ),
     );
