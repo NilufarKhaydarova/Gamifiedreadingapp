@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Upload, BookOpen, Calendar } from 'lucide-react';
+import { Upload, BookOpen, Calendar, Loader2 } from 'lucide-react';
 import { saveBook, initializeProgress } from '../lib/storage';
+import { ingestBook } from '../lib/rag';
+import type { IngestProgress } from '../lib/rag';
 
 export function UploadBook() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<'upload' | 'details'>('upload');
+  const [step, setStep] = useState<'upload' | 'details' | 'ingesting'>('upload');
   const [bookContent, setBookContent] = useState('');
+  const [ingestStatus, setIngestStatus] = useState<IngestProgress | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     author: '',
@@ -33,9 +36,9 @@ export function UploadBook() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const book = {
       title: formData.title,
       author: formData.author,
@@ -45,13 +48,55 @@ export function UploadBook() {
     };
 
     const daysToComplete = parseInt(formData.daysToComplete);
-    
+
     // Save book and initialize progress
     saveBook(book);
     initializeProgress(book.totalPages, daysToComplete);
-    
+
+    // Kick off RAG ingestion (non-blocking — navigate away when done or on error)
+    setStep('ingesting');
+    try {
+      await ingestBook(book, (progress) => setIngestStatus(progress));
+    } catch (err) {
+      // Ingestion failed — app still works, just no RAG context
+      console.warn('[UploadBook] RAG ingestion failed (non-fatal):', err);
+    }
+
     navigate('/');
   };
+
+  if (step === 'ingesting') {
+    const pct =
+      ingestStatus && ingestStatus.chunksTotal > 0
+        ? Math.round((ingestStatus.chunksEmbedded / ingestStatus.chunksTotal) * 100)
+        : 0;
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-white/20 text-center">
+          <Loader2 className="size-12 text-indigo-500 animate-spin mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-2 text-gray-800">Building AI Context…</h2>
+          <p className="text-gray-500 mb-6">
+            {ingestStatus?.phase === 'chunking' && 'Splitting book into passages…'}
+            {ingestStatus?.phase === 'embedding' &&
+              `Embedding passages: ${ingestStatus.chunksEmbedded} / ${ingestStatus.chunksTotal}`}
+            {ingestStatus?.phase === 'done' && 'Almost done!'}
+            {!ingestStatus && 'Starting…'}
+          </p>
+          {ingestStatus?.phase === 'embedding' && (
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          )}
+          <p className="text-xs text-gray-400 mt-4">
+            This enables the Socratic AI to reference specific passages from your book.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (step === 'upload') {
     return (
