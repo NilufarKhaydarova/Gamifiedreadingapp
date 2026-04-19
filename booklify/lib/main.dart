@@ -25,7 +25,10 @@ Future<void> main() async {
     await dotenv.load(fileName: 'assets/.env');
     debugPrint('✅ Environment variables loaded');
   } catch (e) {
-    debugPrint('⚠️ Could not load .env — running without API keys: $e');
+    debugPrint('⚠️ Could not load .env — running in demo mode: $e');
+    // CRITICAL: initialise dotenv with an empty map so dotenv.env[...] never
+    // throws NotInitializedError later in api_keys.dart
+    dotenv.testLoad(fileInput: '');
   }
 
   debugPrint('✅ Booklify starting with local database...');
