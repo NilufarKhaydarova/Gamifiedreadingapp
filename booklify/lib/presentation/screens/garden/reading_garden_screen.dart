@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/progress.dart';
 import '../../../data/models/book.dart';
 import '../../../widgets/garden/tree_painter.dart';
+import '../../providers/garden_provider.dart';
 
 class ReadingGardenScreen extends ConsumerStatefulWidget {
   const ReadingGardenScreen({super.key});
@@ -20,11 +21,11 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
   void initState() {
     super.initState();
     _treeController = AnimationController(
-      duration: Duration(seconds: 2),
+      duration: const Duration(seconds: 2),
       vsync: this,
     );
     _weatherController = AnimationController(
-      duration: Duration(seconds: 20),
+      duration: const Duration(seconds: 20),
       vsync: this,
     )..repeat(); // Continuous weather animation
 
@@ -41,7 +42,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
 
   @override
   Widget build(BuildContext context) {
-    final progressAsync = ref.watch(progressProvider);
+    final progress = ref.watch(progressProvider);
     final weather = ref.watch(gardenWeatherProvider);
 
     return Scaffold(
@@ -56,31 +57,11 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(context, progressAsync),
+              _buildHeader(context, progress),
               Expanded(
-                child: progressAsync.when(
-                  data: (progress) {
-                    final bookAsync = ref.watch(currentBookProvider);
-                    return bookAsync.when(
-                      data: (book) {
-                        return SingleChildScrollView(
-                          child: Column(
-                            children: [
-                              _buildGardenView(context, progress),
-                              _buildStatsRow(context, progress),
-                              _buildBookPreview(context, book, progress),
-                              SizedBox(height: 20),
-                            ],
-                          ),
-                        );
-                      },
-                      loading: () => Center(child: CircularProgressIndicator()),
-                      error: (_, __) => Center(child: Text('Error loading book')),
-                    );
-                  },
-                  loading: () => Center(child: CircularProgressIndicator()),
-                  error: (error, __) => Center(child: Text('Error loading progress')),
-                ),
+                child: progress != null
+                    ? _buildGardenContent(context, progress)
+                    : const Center(child: Text('No progress yet. Start reading to grow your garden!')),
               ),
             ],
           ),
@@ -89,58 +70,86 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
     );
   }
 
-  Widget _buildHeader(BuildContext context, AsyncValue<Progress> progressAsync) {
-    return progressAsync.when(
-      data: (progress) {
-        return Padding(
-          padding: EdgeInsets.all(20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'My Reading Garden',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Nurture your mind, grow your garden',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                ),
+  Widget _buildGardenContent(BuildContext context, Progress progress) {
+    final book = ref.watch(currentBookProvider);
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildGardenView(context, progress),
+          _buildStatsRow(context, progress),
+          if (book != null) _buildBookPreview(context, book, progress),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, Progress? progress) {
+    if (progress == null) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '📚 Reading Garden',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
               ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'My Reading Garden',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.local_fire_department, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text(
-                      '${progress.completedDays.length} days',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  'Nurture your mind, grow your garden',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white70,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        );
-      },
-      loading: () => SizedBox.shrink(),
-      error: (_, __) => SizedBox.shrink(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.local_fire_department, color: Colors.orange),
+                const SizedBox(width: 8),
+                Text(
+                  '${progress.completedDays.length} days',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -150,7 +159,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
     return GestureDetector(
       onTap: () => _showGardenDetails(context, progress),
       child: Container(
-        margin: EdgeInsets.all(20),
+        margin: const EdgeInsets.all(20),
         height: 400,
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.1),
@@ -159,7 +168,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
               blurRadius: 20,
-              offset: Offset(0, 10),
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -178,7 +187,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
 
   Widget _buildStatsRow(BuildContext context, Progress progress) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
           Expanded(
@@ -190,7 +199,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
               color: Colors.amber,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: _buildStatCard(
               context,
@@ -200,7 +209,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
               color: Colors.orange,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: _buildStatCard(
               context,
@@ -223,7 +232,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
     required Color color,
   }) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.2),
         borderRadius: BorderRadius.circular(16),
@@ -232,10 +241,10 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
       child: Column(
         children: [
           Icon(icon, color: color, size: 24),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -243,7 +252,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
           ),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white70,
               fontSize: 12,
             ),
@@ -259,8 +268,8 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
         : null;
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20),
-      padding: EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(16),
@@ -268,7 +277,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Today\'s Episode',
             style: TextStyle(
               color: Colors.white,
@@ -276,18 +285,18 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
               fontWeight: FontWeight.w500,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           if (currentChunk != null)
             Text(
               currentChunk.episodeTitle,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
             )
           else
-            Text(
+            const Text(
               'No active episode',
               style: TextStyle(
                 color: Colors.white60,
@@ -295,27 +304,27 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
               ),
             ),
           if (currentChunk != null) ...[
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               currentChunk.keyIdea,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 14,
                 fontStyle: FontStyle.italic,
               ),
             ),
           ],
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pushNamed(context, '/reading');
             },
-            icon: Icon(Icons.play_arrow),
-            label: 'Start Reading',
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Start Reading'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
-              minimumSize: Size(double.infinity, 48),
+              minimumSize: const Size(double.infinity, 48),
             ),
           ),
         ],
@@ -327,18 +336,18 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
     switch (weather) {
       case GardenWeather.sunny:
         return [
-          Color(0xFF87CEEB), // Sky blue
-          Color(0xFFE0F7FA), // Light cyan
+          const Color(0xFF87CEEB), // Sky blue
+          const Color(0xFFE0F7FA), // Light cyan
         ];
       case GardenWeather.cloudy:
         return [
-          Color(0xFFB0BEC5), // Blue grey
-          Color(0xFFCFD8DC), // Light grey
+          const Color(0xFFB0BEC5), // Blue grey
+          const Color(0xFFCFD8DC), // Light grey
         ];
       case GardenWeather.stormy:
         return [
-          Color(0xFF546E7A), // Dark blue grey
-          Color(0xFF78909C), // Medium grey
+          const Color(0xFF546E7A), // Dark blue grey
+          const Color(0xFF78909C), // Medium grey
         ];
     }
   }
@@ -382,14 +391,14 @@ class _GardenDetailsSheet extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildHandle(context),
           Padding(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -397,15 +406,15 @@ class _GardenDetailsSheet extends StatelessWidget {
                   'Garden Stats',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 _buildStatRow(context, 'Reading Streak', '${progress.completedDays.length} days'),
                 _buildStatRow(context, 'Current Level', '${progress.level}'),
                 _buildStatRow(context, 'Total XP', '${progress.xp}'),
                 _buildStatRow(context, 'Progress', '${(progress.progressPercent * 100).toInt()}%'),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('Close'),
+                  child: const Text('Close'),
                 ),
               ],
             ),
@@ -418,7 +427,7 @@ class _GardenDetailsSheet extends StatelessWidget {
   Widget _buildHandle(BuildContext context) {
     return Center(
       child: Container(
-        margin: EdgeInsets.only(top: 12),
+        margin: const EdgeInsets.only(top: 12),
         width: 40,
         height: 4,
         decoration: BoxDecoration(
@@ -431,7 +440,7 @@ class _GardenDetailsSheet extends StatelessWidget {
 
   Widget _buildStatRow(BuildContext context, String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [

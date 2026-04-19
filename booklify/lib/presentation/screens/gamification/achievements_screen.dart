@@ -6,8 +6,8 @@ class AchievementsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Achievements')),
-      body: Center(
+      appBar: AppBar(title: const Text('Achievements')),
+      body: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

@@ -12,7 +12,7 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.background,
       fontFamily: 'Plus Jakarta Sans',
       textTheme: _buildTextTheme(Brightness.light),
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -28,7 +28,7 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -44,10 +44,10 @@ class AppTheme {
         seedColor: AppColors.primary,
         brightness: Brightness.dark,
       ),
-      scaffoldBackgroundColor: Color(0xFF1A1A2E),
+      scaffoldBackgroundColor: const Color(0xFF1A1A2E),
       fontFamily: 'Plus Jakarta Sans',
       textTheme: _buildTextTheme(Brightness.dark),
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xFF16213E),
         foregroundColor: Colors.white,
         elevation: 0,
@@ -55,7 +55,7 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 2,
-        color: Color(0xFF1F1F3A),
+        color: const Color(0xFF1F1F3A),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -65,7 +65,7 @@ class AppTheme {
 
   static TextTheme _buildTextTheme(Brightness brightness) {
     final textColor = brightness == Brightness.light
-        ? Color(0xFF2C2416)
+        ? const Color(0xFF2C2416)
         : Colors.white;
 
     return TextTheme(
