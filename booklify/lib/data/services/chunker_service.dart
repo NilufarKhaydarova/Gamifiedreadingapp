@@ -1,5 +1,5 @@
 import '../models/book.dart';
-import 'openai_service.dart';
+import 'claude_service.dart';
 
 // Helper class for internal chunk representation
 class _TextChunk {
@@ -15,9 +15,9 @@ class _TextChunk {
 }
 
 class SmartChunkerService {
-  final OpenAIService _openAI;
+  final ClaudeService _claude;
 
-  SmartChunkerService(this._openAI);
+  SmartChunkerService(this._claude);
 
   // Main chunking function - creates reading plan from book content
   Future<List<BookChunk>> createReadingPlan({
@@ -52,8 +52,8 @@ class SmartChunkerService {
       final endOffset = currentOffset + combinedContent.length;
       currentOffset = endOffset;
 
-      // Generate AI episode metadata
-      final metadata = await _openAI.generateEpisodeMetadata(
+      // Generate AI episode metadata via Claude
+      final metadata = await _claude.generateEpisodeMetadata(
         bookTitle: bookTitle,
         author: author,
         chunkContent: combinedContent,
@@ -231,12 +231,12 @@ class SmartChunkerService {
 
   double _calculateLexicalDiversity(List<String> words) {
     final uniqueWords = words.toSet();
-    return words.length > 0 ? uniqueWords.length / words.length : 0;
+    return words.isNotEmpty ? uniqueWords.length / words.length : 0;
   }
 
   int _estimateReadingTime(int wordCount, Difficulty difficulty) {
     // Average reading speed: 200-250 words per minute
-    final baseWPM = 220;
+    const baseWPM = 220;
     final adjustedWPM = difficulty == Difficulty.dense
         ? baseWPM * 0.7
         : difficulty == Difficulty.light
