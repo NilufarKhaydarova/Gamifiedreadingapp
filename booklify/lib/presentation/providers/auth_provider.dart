@@ -1,6 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/user.dart' as models;
-import '../../data/services/supabase_service.dart';
+import '../../data/services/database_service.dart';
 
 // Auth state
 enum AuthStatus {
@@ -37,32 +38,21 @@ class AuthState {
 
 // Auth notifier
 class AuthNotifier extends StateNotifier<AuthState> {
-  final SupabaseService _supabaseService;
+  final DatabaseService _databaseService;
 
-  AuthNotifier(this._supabaseService) : super(AuthState()) {
+  AuthNotifier(this._databaseService) : super(AuthState()) {
     _init();
   }
 
   Future<void> _init() async {
     state = state.copyWith(status: AuthStatus.loading);
-
     try {
-      await _supabaseService.initialize();
-      final user = await _supabaseService.getCurrentUser();
-
-      if (user != null) {
-        state = state.copyWith(
-          status: AuthStatus.authenticated,
-          user: user,
-        );
-      } else {
-        state = state.copyWith(status: AuthStatus.unauthenticated);
-      }
+      await _databaseService.initialize();
+      state = state.copyWith(status: AuthStatus.unauthenticated);
     } catch (e) {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: e.toString(),
-      );
+      // Initialisation errors are internal — never surface to the user.
+      debugPrint('⚠️ DB init: $e');
+      state = state.copyWith(status: AuthStatus.unauthenticated);
     }
   }
 
@@ -74,7 +64,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(status: AuthStatus.loading);
 
     try {
-      final user = await _supabaseService.signUp(
+      final user = await _databaseService.signUp(
         email: email,
         password: password,
         displayName: displayName,
@@ -99,7 +89,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(status: AuthStatus.loading);
 
     try {
-      final user = await _supabaseService.signIn(
+      final user = await _databaseService.signIn(
         email: email,
         password: password,
       );
@@ -120,7 +110,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(status: AuthStatus.loading);
 
     try {
-      await _supabaseService.signOut();
+      await _databaseService.signOut();
       state = state.copyWith(
         status: AuthStatus.unauthenticated,
         user: null,
@@ -134,17 +124,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   void clearError() {
-    state = state.copyWith(errorMessage: '');
+    state = AuthState(status: state.status, user: state.user);
   }
 }
 
 // Providers
-final supabaseServiceProvider = Provider<SupabaseService>((ref) {
-  return SupabaseService();
+final databaseServiceProvider = Provider<DatabaseService>((ref) {
+  return DatabaseService();
 });
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  final service = ref.watch(supabaseServiceProvider);
+  final service = ref.watch(databaseServiceProvider);
   return AuthNotifier(service);
 });
 
