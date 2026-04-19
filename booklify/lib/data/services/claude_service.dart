@@ -356,6 +356,130 @@ and end with a follow-up question. Under 100 words. Respond in the user's langua
     }
   }
 
+  // ── Reading Plan Generation ────────────────────────────────────────────────
+  // When a user adds a known book (no actual text), Claude generates a rich
+  // 7-day guided reading plan with educational content.
+
+  Future<List<BookChunk>> generateReadingPlan({
+    required String title,
+    required String author,
+    int totalDays = 7,
+  }) async {
+    final prompt = '''
+Create a $totalDays-day guided reading plan for "$title" by $author.
+
+For each day, provide a structured reading guide that helps readers engage deeply with the book.
+
+Return ONLY valid JSON:
+{
+  "chunks": [
+    {
+      "dayNumber": 1,
+      "episodeTitle": "5 words max, Netflix-style episode title",
+      "keyIdea": "One sentence — the core idea or theme for this section",
+      "preview": "2 sentences teasing what readers will explore today",
+      "difficulty": "light",
+      "estimatedMinutes": 20,
+      "sections": [
+        {
+          "title": "Context & Overview",
+          "content": "300-400 words of engaging content: historical context, what happens in this section, key characters introduced. Use markdown: **bold** for key terms, > for important quotes or ideas.",
+          "type": "chapter"
+        },
+        {
+          "title": "Themes & Analysis",
+          "content": "250-300 words diving into the literary themes, symbolism, and deeper meaning in this section. Connect to broader ideas.",
+          "type": "section"
+        },
+        {
+          "title": "Reflect & Discuss",
+          "content": "3-4 thought-provoking discussion questions. Format as:\\n\\n**Question 1:** ...\\n\\n**Question 2:** ...\\n\\n**Question 3:** ...",
+          "type": "paragraph"
+        }
+      ]
+    }
+  ]
+}
+
+Difficulty progression: days 1-2 = "light", days 3-5 = "moderate", days 6-7 = "dense"
+estimatedMinutes: 15-25 per day
+Make each day feel like a compelling episode — create anticipation for the next.''';
+
+    try {
+      final raw = await _message(
+        systemPrompt:
+            'You are an expert literary educator creating an immersive reading guide. Return only valid JSON.',
+        messages: [
+          {'role': 'user', 'content': prompt}
+        ],
+        model: ApiKeys.claudeModel,
+        maxTokens: 6000,
+        temperature: 0.5,
+      );
+
+      final cleaned = raw
+          .replaceAll(RegExp(r'^```json\s*', multiLine: true), '')
+          .replaceAll(RegExp(r'^```\s*', multiLine: true), '')
+          .trim();
+
+      final data = json.decode(cleaned) as Map<String, dynamic>;
+      final chunks = (data['chunks'] as List).asMap().entries.map((entry) {
+        final i = entry.key;
+        final c = entry.value as Map<String, dynamic>;
+        final sections = (c['sections'] as List?) ?? [];
+        final subChunks = sections.asMap().entries.map((se) {
+          final sc = se.value as Map<String, dynamic>;
+          return SubChunk(
+            id: 'day${c['dayNumber']}-section${se.key}',
+            content: sc['content'] as String? ?? '',
+            type: _parseChunkType(sc['type']),
+            wordCount: (sc['content'] as String? ?? '').split(' ').length,
+          );
+        }).toList();
+
+        return BookChunk(
+          id: 'day-${c['dayNumber']}',
+          dayNumber: (c['dayNumber'] as num).toInt(),
+          episodeTitle: c['episodeTitle'] as String? ?? 'Day ${i + 1}',
+          keyIdea: c['keyIdea'] as String? ?? '',
+          preview: c['preview'] as String? ?? '',
+          difficulty: _parseDifficulty(c['difficulty']),
+          estimatedMinutes: (c['estimatedMinutes'] as num?)?.toInt() ?? 20,
+          startOffset: i * 1000,
+          endOffset: (i + 1) * 1000,
+          completed: false,
+          subChunks: subChunks,
+        );
+      }).toList();
+
+      debugPrint('✅ Generated ${chunks.length}-day reading plan for "$title"');
+      return chunks;
+    } catch (e) {
+      debugPrint('❌ generateReadingPlan error: $e');
+      // Return a minimal fallback so the app never crashes
+      return List.generate(totalDays, (i) => BookChunk(
+        id: 'day-${i + 1}',
+        dayNumber: i + 1,
+        episodeTitle: 'Day ${i + 1}',
+        keyIdea: 'Exploring "$title"',
+        preview: 'Your reading journey continues.',
+        difficulty: Difficulty.moderate,
+        estimatedMinutes: 20,
+        startOffset: i * 1000,
+        endOffset: (i + 1) * 1000,
+        subChunks: [
+          SubChunk(
+            id: 'day${i + 1}-section0',
+            content:
+                '## Day ${i + 1} Reading Guide\n\nContinue reading "$title" by $author.\n\nReflect on what you\'ve read so far and consider the themes being developed.',
+            type: ChunkType.section,
+            wordCount: 30,
+          ),
+        ],
+      ));
+    }
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   Difficulty _parseDifficulty(dynamic val) {
@@ -366,6 +490,17 @@ and end with a follow-up question. Under 100 words. Respond in the user's langua
         return Difficulty.dense;
       default:
         return Difficulty.moderate;
+    }
+  }
+
+  ChunkType _parseChunkType(dynamic val) {
+    switch ('$val'.toLowerCase()) {
+      case 'chapter':
+        return ChunkType.chapter;
+      case 'paragraph':
+        return ChunkType.paragraph;
+      default:
+        return ChunkType.section;
     }
   }
 
