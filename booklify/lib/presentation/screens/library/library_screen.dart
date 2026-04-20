@@ -2,222 +2,157 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:uuid/uuid.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/models/book.dart';
+import '../../../data/services/chunker_service.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/book_provider.dart';
-import '../reading/reading_session_screen.dart';
+import '../../providers/garden_provider.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
 
-  static const _kPurple = Color(0xFF6B21A8);
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final booksAsync = ref.watch(booksProvider);
+    final currentBook = ref.watch(currentBookProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F4FC),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('My Library'),
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddBookDialog(context, ref),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Book'),
+      ),
       body: booksAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
         data: (books) {
           if (books.isEmpty) {
-            return _EmptyLibrary(
-              onAdd: () => _showAddSheet(context, ref),
-            );
+            return _buildEmptyState(context, ref);
           }
-          return CustomScrollView(
-            slivers: [
-              _buildHeader(context, ref),
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverGrid(
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.68,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) {
-                      final book = books[i];
-                      final notifier = ref.read(booksProvider.notifier);
-                      return _BookCard(
-                        book: book,
-                        progress: notifier.progressFor(book),
-                        onTap: () =>
-                            _openBook(context, ref, book),
-                        onDelete: () =>
-                            _confirmDelete(context, ref, book),
-                      );
-                    },
-                    childCount: books.length,
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 80)),
-            ],
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            itemCount: books.length,
+            itemBuilder: (context, index) {
+              final book = books[index];
+              final isSelected = currentBook?.id == book.id;
+              return _BookCard(
+                book: book,
+                isSelected: isSelected,
+                onSelect: () {
+                  ref.read(currentBookProvider.notifier).state = book;
+                  ref.invalidate(progressProvider);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('"${book.title}" is now active'),
+                      backgroundColor: AppColors.primary,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+                onDelete: () => _confirmDelete(context, ref, book),
+              );
+            },
           );
         },
+        loading: () =>
+            const Center(child: CircularProgressIndicator()),
+        error: (e, _) =>
+            Center(child: Text('Error loading library: $e')),
       ),
-      floatingActionButton: booksAsync.hasValue && booksAsync.value!.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: () => _showAddSheet(context, ref),
-              backgroundColor: _kPurple,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Book'),
-            )
-          : null,
     );
   }
 
-  // ── Header sliver ──────────────────────────────────────────────────────────
-
-  Widget _buildHeader(BuildContext context, WidgetRef ref) {
-    return SliverToBoxAdapter(
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF6B21A8), Color(0xFF4F46E5)],
-          ),
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(24, 52, 24, 24),
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('My Library',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Consumer(builder: (_, ref, __) {
-              final count =
-                  ref.watch(booksProvider).valueOrNull?.length ?? 0;
-              return Text('$count book${count == 1 ? '' : 's'}',
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 13));
-            }),
+            Icon(Icons.menu_book, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 24),
+            Text(
+              'Your library is empty',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Add a .txt book file to get started with your reading journey.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () => _showAddBookDialog(context, ref),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Add Your First Book'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ── Navigation ─────────────────────────────────────────────────────────────
-
-  Future<void> _openBook(
-      BuildContext context, WidgetRef ref, Book book) async {
-    if (book.chunks.isEmpty) {
-      await _generateAndOpen(context, ref, book);
-    } else {
-      _navigateToReading(context, ref, book);
-    }
-  }
-
-  Future<void> _generateAndOpen(
-      BuildContext context, WidgetRef ref, Book book) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _GeneratingDialog(bookTitle: book.title),
-    );
-    try {
-      final ready =
-          await ref.read(booksProvider.notifier).prepareForReading(book.id);
-      if (context.mounted) {
-        Navigator.of(context).pop();
-        _navigateToReading(context, ref, ready);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Could not generate guide: $e'),
-          backgroundColor: Colors.red,
-        ));
-      }
-    }
-  }
-
-  void _navigateToReading(
-      BuildContext context, WidgetRef ref, Book book) {
-    final chunk =
-        ProviderScope.containerOf(context)
-            .read(booksProvider.notifier)
-            .currentChunkFor(book);
-    if (chunk == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) =>
-              ReadingSessionScreen(chunk: chunk, book: book)),
-    );
-  }
-
-  // ── Add book sheet ─────────────────────────────────────────────────────────
-
-  void _showAddSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
+  Future<void> _showAddBookDialog(
+      BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AddBookSheet(
-        onAddByTitle: (title, author) async {
-          final user = ref.read(authProvider).user;
-          if (user != null) {
-            await ref.read(booksProvider.notifier).addBook(
-                  userId: user.id,
-                  title: title,
-                  author: author,
-                );
-          }
-        },
-        onAddWithText: (title, author, content) async {
-          final user = ref.read(authProvider).user;
-          if (user != null) {
-            await ref.read(booksProvider.notifier).addBook(
-                  userId: user.id,
-                  title: title,
-                  author: author,
-                  content: content,
-                );
-          }
-        },
-      ),
+      builder: (_) => _AddBookSheet(ref: ref),
     );
   }
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
-
   Future<void> _confirmDelete(
       BuildContext context, WidgetRef ref, Book book) async {
-    final ok = await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Remove Book?'),
-        content: Text('Remove "${book.title}"? This cannot be undone.'),
+        title: const Text('Delete Book'),
+        content: Text(
+            'Delete "${book.title}"? This will also remove all reading progress.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Remove')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style:
+                ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child:
+                const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
         ],
       ),
     );
-    if (ok == true) {
-      await ref.read(booksProvider.notifier).removeBook(book.id);
+
+    if (confirmed == true) {
+      await ref.read(booksProvider.notifier).deleteBook(book.id);
+      final current = ref.read(currentBookProvider);
+      if (current?.id == book.id) {
+        ref.read(currentBookProvider.notifier).state = null;
+      }
     }
   }
 }
@@ -226,225 +161,103 @@ class LibraryScreen extends ConsumerWidget {
 
 class _BookCard extends StatelessWidget {
   final Book book;
-  final double progress;
-  final VoidCallback onTap;
+  final bool isSelected;
+  final VoidCallback onSelect;
   final VoidCallback onDelete;
 
   const _BookCard({
     required this.book,
-    required this.progress,
-    required this.onTap,
+    required this.isSelected,
+    required this.onSelect,
     required this.onDelete,
   });
 
-  static const _colors = [
-    Color(0xFF6B21A8),
-    Color(0xFF1D4ED8),
-    Color(0xFF0F766E),
-    Color(0xFF7C3AED),
-    Color(0xFF0369A1),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final color = _colors[book.title.length % _colors.length];
-    final completed = book.chunks.where((c) => c.completed).length;
-    final total = book.chunks.isEmpty ? 7 : book.chunks.length;
-    final hasContent = book.content.isNotEmpty;
-
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onDelete,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.07),
-                blurRadius: 12,
-                offset: const Offset(0, 4)),
-          ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: isSelected
+            ? Border.all(color: AppColors.primary, width: 2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: isSelected
+                ? AppColors.primary.withOpacity(0.15)
+                : Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 50,
+          height: 70,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.primary.withOpacity(0.15)
+                : Colors.grey[100],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.menu_book,
+            color: isSelected ? AppColors.primary : Colors.grey[400],
+            size: 28,
+          ),
         ),
-        child: Column(
+        title: Text(
+          book.title,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Cover
-            Expanded(
-              flex: 3,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [color, color.withValues(alpha: 0.7)],
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(18)),
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Text(
-                          book.title,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13),
-                          textAlign: TextAlign.center,
-                          maxLines: 4,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    // Badges
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          if (book.chunks.isEmpty)
-                            _badge('AI', color),
-                          if (hasContent)
-                            _badge('TXT', Colors.teal),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            Text(
+              book.author,
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
             ),
-            // Info
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      book.author,
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.grey[500]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (book.chunks.isNotEmpty) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(3),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 4,
-                          backgroundColor: Colors.grey[200],
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(color),
-                        ),
-                      ),
-                      Text(
-                        'Day $completed of $total',
-                        style: TextStyle(
-                            fontSize: 10, color: Colors.grey[500]),
-                      ),
-                    ] else
-                      Text(
-                        'Tap to generate guide',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: color,
-                            fontStyle: FontStyle.italic),
-                      ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.play_circle_filled_rounded,
-                          color: color, size: 24),
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 4),
+            Text(
+              '${book.chunks.length} day plan',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _badge(String label, Color color) => Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 8,
-                fontWeight: FontWeight.bold,
-                color: color)),
-      );
-}
-
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
-class _EmptyLibrary extends StatelessWidget {
-  final VoidCallback onAdd;
-  const _EmptyLibrary({required this.onAdd});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6B21A8), Color(0xFF4F46E5)],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                      color: const Color(0xFF6B21A8).withValues(alpha: 0.3),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8))
-                ],
-              ),
-              child: const Icon(Icons.library_books_rounded,
-                  size: 56, color: Colors.white),
-            ),
-            const SizedBox(height: 28),
-            const Text('Your Library is Empty',
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E1B4B))),
-            const SizedBox(height: 12),
-            Text(
-              'Add a book by title and let Claude create a 7-day reading guide — or paste your own text.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: Colors.grey[600], fontSize: 14, height: 1.6),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add Your First Book'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6B21A8),
-                foregroundColor: Colors.white,
+            if (isSelected)
+              Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                    horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Active',
+                  style: TextStyle(color: Colors.white, fontSize: 11),
+                ),
+              )
+            else
+              TextButton(
+                onPressed: onSelect,
+                child: const Text('Read'),
               ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: onDelete,
             ),
           ],
         ),
@@ -455,405 +268,304 @@ class _EmptyLibrary extends StatelessWidget {
 
 // ─── Add Book Bottom Sheet ────────────────────────────────────────────────────
 
-class _AddBookSheet extends StatefulWidget {
-  final Future<void> Function(String title, String author) onAddByTitle;
-  final Future<void> Function(String title, String author, String content)
-      onAddWithText;
-
-  const _AddBookSheet({
-    required this.onAddByTitle,
-    required this.onAddWithText,
-  });
+class _AddBookSheet extends ConsumerStatefulWidget {
+  final WidgetRef ref;
+  const _AddBookSheet({required this.ref});
 
   @override
-  State<_AddBookSheet> createState() => _AddBookSheetState();
+  ConsumerState<_AddBookSheet> createState() => _AddBookSheetState();
 }
 
-class _AddBookSheetState extends State<_AddBookSheet>
-    with SingleTickerProviderStateMixin {
-  late TabController _tab;
-  final _titleCtrl = TextEditingController();
-  final _authorCtrl = TextEditingController();
-  final _textCtrl = TextEditingController();
-  bool _isLoading = false;
-  String? _fileName;
+class _AddBookSheetState extends ConsumerState<_AddBookSheet> {
+  final _titleController = TextEditingController();
+  final _authorController = TextEditingController();
+  final _daysController = TextEditingController(text: '30');
+  final _contentController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    _tab = TabController(length: 2, vsync: this);
-  }
+  String? _fileName;
+  String? _fileContent;
+  bool _isLoading = false;
+  bool _useFileUpload = true;
 
   @override
   void dispose() {
-    _tab.dispose();
-    _titleCtrl.dispose();
-    _authorCtrl.dispose();
-    _textCtrl.dispose();
+    _titleController.dispose();
+    _authorController.dispose();
+    _daysController.dispose();
+    _contentController.dispose();
     super.dispose();
   }
 
-  // ── File picker ────────────────────────────────────────────────────────────
-
   Future<void> _pickFile() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['txt'],
-        withData: false,
-        withReadStream: false,
-      );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.first;
-      if (file.path == null) return;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['txt'],
+    );
 
-      final content = await File(file.path!).readAsString();
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    String? content;
+
+    if (file.bytes != null) {
+      content = String.fromCharCodes(file.bytes!);
+    } else if (file.path != null) {
+      content = await File(file.path!).readAsString();
+    }
+
+    if (content != null && mounted) {
       setState(() {
-        _textCtrl.text = content;
         _fileName = file.name;
-        // Auto-fill title from filename
-        if (_titleCtrl.text.isEmpty) {
-          _titleCtrl.text = file.name
-              .replaceAll('.txt', '')
-              .replaceAll('_', ' ')
-              .replaceAll('-', ' ');
+        _fileContent = content;
+        if (_titleController.text.isEmpty) {
+          _titleController.text =
+              file.name.replaceAll('.txt', '').replaceAll('_', ' ');
         }
       });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error reading file: $e')),
-        );
-      }
     }
   }
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
-
   Future<void> _submit() async {
-    final title = _titleCtrl.text.trim();
-    final author = _authorCtrl.text.trim();
-    if (title.isEmpty || author.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Title and author are required'),
-            backgroundColor: Colors.red),
-      );
+    final title = _titleController.text.trim();
+    final author = _authorController.text.trim();
+    final daysText = _daysController.text.trim();
+    final content =
+        _useFileUpload ? _fileContent : _contentController.text.trim();
+
+    if (title.isEmpty) {
+      _showError('Please enter a book title.');
       return;
     }
 
+    if (content == null || content.isEmpty) {
+      _showError(_useFileUpload
+          ? 'Please select a .txt file.'
+          : 'Please paste or type some content.');
+      return;
+    }
+
+    final days = int.tryParse(daysText) ?? 30;
+
     setState(() => _isLoading = true);
+
     try {
-      final text = _textCtrl.text.trim();
-      if (text.isNotEmpty) {
-        await widget.onAddWithText(title, author, text);
-      } else {
-        await widget.onAddByTitle(title, author);
-      }
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
+      final user = ref.read(authUserProvider);
+      if (user == null) throw Exception('Not logged in');
+
+      // Build chunks (without AI — uses smart paragraph splitting)
+      final chunker = SmartChunkerService();
+      final chunks = await chunker.createReadingPlan(
+        content: content,
+        totalDays: days,
+      );
+
+      final book = Book(
+        id: const Uuid().v4(),
+        title: title,
+        author: author.isEmpty ? 'Unknown' : author,
+        totalPages: 0,
+        content: content,
+        uploadDate: DateTime.now(),
+        chunks: chunks,
+      );
+
+      await ref.read(booksProvider.notifier).addBook(book);
+
+      // Auto-select the new book
+      ref.read(currentBookProvider.notifier).state = book;
+      ref.invalidate(progressProvider);
+
       if (mounted) {
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(
+                '"$title" added with ${chunks.length} daily episodes!'),
+            backgroundColor: AppColors.primary,
+          ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showError('Failed to add book: $e');
     }
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  void _showError(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (_, controller) => Container(
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: Column(
-          children: [
-            // Handle
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2)),
-            ),
-            // Title
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: Text('Add a Book',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E1B4B))),
-            ),
-            // Tab bar
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F4FC),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TabBar(
-                controller: _tab,
-                indicator: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6B21A8), Color(0xFF4F46E5)],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  borderRadius: BorderRadius.circular(10),
                 ),
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.grey[600],
-                labelStyle: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
-                dividerColor: Colors.transparent,
-                tabs: const [
-                  Tab(text: '✨ By Title'),
-                  Tab(text: '📄 Add Text'),
-                ],
               ),
-            ),
-            const SizedBox(height: 4),
-            // Tab views
-            Expanded(
-              child: TabBarView(
-                controller: _tab,
-                children: [
-                  _byTitleTab(controller),
-                  _withTextTab(controller),
-                ],
+              Text(
+                'Add a Book',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+              const SizedBox(height: 20),
 
-  Widget _byTitleTab(ScrollController scroll) {
-    return SingleChildScrollView(
-      controller: scroll,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _field(_titleCtrl, 'Book Title *', 'e.g. The Great Gatsby',
-              Icons.menu_book_rounded),
-          const SizedBox(height: 14),
-          _field(_authorCtrl, 'Author *', 'e.g. F. Scott Fitzgerald',
-              Icons.person_outline_rounded),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6B21A8), Color(0xFF4F46E5)],
+              // Title
+              TextField(
+                controller: _titleController,
+                decoration: _inputDecoration('Book Title *'),
               ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.auto_awesome_rounded,
-                    color: Colors.white, size: 18),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Claude will generate a personalised 7-day reading guide when you open the book.',
-                    style: TextStyle(
-                        color: Colors.white, fontSize: 12, height: 1.5),
+              const SizedBox(height: 12),
+
+              // Author
+              TextField(
+                controller: _authorController,
+                decoration: _inputDecoration('Author (optional)'),
+              ),
+              const SizedBox(height: 12),
+
+              // Days
+              TextField(
+                controller: _daysController,
+                decoration: _inputDecoration('Reading Plan (days)'),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 20),
+
+              // Toggle: file upload vs paste
+              Row(
+                children: [
+                  _modeChip('Upload .txt', true),
+                  const SizedBox(width: 8),
+                  _modeChip('Paste Text', false),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              if (_useFileUpload) ...[
+                OutlinedButton.icon(
+                  onPressed: _pickFile,
+                  icon: const Icon(Icons.upload_file),
+                  label: Text(_fileName ?? 'Choose .txt file'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 52),
+                    side: BorderSide(color: AppColors.primary),
+                    foregroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
+                ),
+                if (_fileContent != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      '${_fileContent!.length} characters loaded',
+                      style: TextStyle(
+                          color: AppColors.primary, fontSize: 13),
+                    ),
+                  ),
+              ] else ...[
+                TextField(
+                  controller: _contentController,
+                  maxLines: 6,
+                  decoration: _inputDecoration('Paste your book text here…'),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: 28),
-          _submitButton(),
-        ],
-      ),
-    );
-  }
 
-  Widget _withTextTab(ScrollController scroll) {
-    return SingleChildScrollView(
-      controller: scroll,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _field(_titleCtrl, 'Book Title *', 'e.g. Pride and Prejudice',
-              Icons.menu_book_rounded),
-          const SizedBox(height: 14),
-          _field(_authorCtrl, 'Author *', 'e.g. Jane Austen',
-              Icons.person_outline_rounded),
-          const SizedBox(height: 20),
-          // Import file button
-          OutlinedButton.icon(
-            onPressed: _isLoading ? null : _pickFile,
-            icon: const Icon(Icons.upload_file_rounded),
-            label: Text(_fileName ?? 'Import .txt file'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF6B21A8),
-              side: const BorderSide(color: Color(0xFF6B21A8)),
-              minimumSize: const Size(double.infinity, 46),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text('Or paste text below:',
-              style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _textCtrl,
-            maxLines: 10,
-            style: const TextStyle(fontSize: 13, height: 1.6),
-            decoration: InputDecoration(
-              hintText: 'Paste book content here…',
-              hintStyle:
-                  TextStyle(color: Colors.grey[400], fontSize: 13),
-              filled: true,
-              fillColor: const Color(0xFFF8F7FF),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    BorderSide(color: Colors.grey[200]!),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                    color: Color(0xFF6B21A8), width: 1.5),
-              ),
-              contentPadding: const EdgeInsets.all(14),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'The text will be split into 7 reading sessions. No AI call needed.',
-            style:
-                TextStyle(fontSize: 11, color: Colors.grey[400]),
-          ),
-          const SizedBox(height: 24),
-          _submitButton(),
-        ],
-      ),
-    );
-  }
-
-  Widget _field(TextEditingController ctrl, String label, String hint,
-      IconData icon) {
-    return TextFormField(
-      controller: ctrl,
-      style: const TextStyle(fontSize: 15),
-      textCapitalization: TextCapitalization.words,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: const Color(0xFF6B21A8), size: 20),
-        filled: true,
-        fillColor: const Color(0xFFF8F7FF),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[200]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: Color(0xFF6B21A8), width: 1.5),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      ),
-    );
-  }
-
-  Widget _submitButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _submit,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF6B21A8),
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
-          elevation: 0,
-        ),
-        child: _isLoading
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Colors.white)))
-            : const Text('Add to Library',
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-}
-
-// ─── Generating Dialog ────────────────────────────────────────────────────────
-
-class _GeneratingDialog extends StatelessWidget {
-  final String bookTitle;
-  const _GeneratingDialog({required this.bookTitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      content: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6B21A8), Color(0xFF4F46E5)],
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Add Book',
+                          style: TextStyle(fontSize: 16)),
                 ),
-                shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.auto_awesome_rounded,
-                  color: Colors.white, size: 36),
-            ),
-            const SizedBox(height: 20),
-            const Text('Building Your Reading Guide',
-                style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text(
-              'Claude is crafting a personalised 7-day guide for "$bookTitle"…',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: Colors.grey[600], fontSize: 13, height: 1.5),
-            ),
-            const SizedBox(height: 20),
-            LinearProgressIndicator(
-              backgroundColor: Colors.purple[100],
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(Color(0xFF6B21A8)),
-            ),
-            const SizedBox(height: 8),
-            Text('Takes ~15 seconds',
-                style:
-                    TextStyle(fontSize: 11, color: Colors.grey[400])),
-          ],
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _modeChip(String label, bool value) {
+    final selected = _useFileUpload == value;
+    return GestureDetector(
+      onTap: () => setState(() => _useFileUpload = value),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color:
+              selected ? AppColors.primary : Colors.grey[100],
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.grey[700],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey[50],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide:
+            const BorderSide(color: AppColors.primary, width: 2),
       ),
     );
   }

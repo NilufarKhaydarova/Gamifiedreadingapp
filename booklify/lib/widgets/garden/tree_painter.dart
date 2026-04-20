@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 /// Custom painter that creates the signature growing tree visualization
 /// This is the emotional heart of Booklify - every reading session grows the tree

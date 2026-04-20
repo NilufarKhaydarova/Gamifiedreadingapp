@@ -1,92 +1,67 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+
 import '../models/user.dart' as models;
+import '../models/book.dart';
 import '../models/progress.dart';
 import '../models/achievement.dart';
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
 
 class DatabaseService {
-  static final DatabaseService _instance = DatabaseService._internal();
   static Database? _database;
-  final Uuid _uuid = const Uuid();
-
-  factory DatabaseService() => _instance;
-
-  DatabaseService._internal();
+  static const String _dbName = 'booklify.db';
+  static const int _dbVersion = 2;
+  static const String _currentUserKey = 'current_user_id';
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDatabase();
+    _database ??= await _initDatabase();
     return _database!;
   }
 
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'booklify.db');
+    final path = join(dbPath, _dbName);
 
-    final database = await openDatabase(
+    return await openDatabase(
       path,
-      version: 2,
-      onCreate: _onCreate,
+      version: _dbVersion,
+      onCreate: _createTables,
       onUpgrade: _onUpgrade,
-      onConfigure: _onConfigure,
     );
-
-    return database;
   }
 
-  Future<void> _onConfigure(Database db) async {
-    await db.execute('PRAGMA foreign_keys = ON');
-  }
-
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      // Add content and chunks_json columns to books table
-      try {
-        await db.execute('ALTER TABLE books ADD COLUMN content TEXT');
-      } catch (_) {}
-      try {
-        await db.execute('ALTER TABLE books ADD COLUMN chunks_json TEXT');
-      } catch (_) {}
-      debugPrint('✅ DB migrated to version 2');
-    }
-  }
-
-  Future<void> _onCreate(Database db, int version) async {
-    // Users table
+  Future<void> _createTables(Database db, int version) async {
     await db.execute('''
       CREATE TABLE users (
         id TEXT PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
         display_name TEXT NOT NULL,
-        xp INTEGER DEFAULT 0,
-        level INTEGER DEFAULT 1,
+        password_hash TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        last_login_at TEXT,
+        onboarding_complete INTEGER DEFAULT 0
       )
     ''');
 
-    // Books table
     await db.execute('''
       CREATE TABLE books (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         title TEXT NOT NULL,
-        author TEXT NOT NULL,
-        cover_url TEXT,
-        total_days INTEGER DEFAULT 30,
-        content TEXT,
-        chunks_json TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        author TEXT DEFAULT 'Unknown',
+        total_pages INTEGER DEFAULT 0,
+        content TEXT DEFAULT '',
+        upload_date TEXT NOT NULL,
+        language TEXT DEFAULT 'en',
+        description TEXT,
+        chunks_json TEXT DEFAULT '[]',
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     ''');
 
-    // Reading progress table
     await db.execute('''
       CREATE TABLE reading_progress (
         id TEXT PRIMARY KEY,
@@ -94,62 +69,56 @@ class DatabaseService {
         book_id TEXT NOT NULL,
         current_day INTEGER DEFAULT 0,
         total_days INTEGER DEFAULT 30,
-        completed_days TEXT DEFAULT '[]',
+        completed_days_json TEXT DEFAULT '[]',
         xp INTEGER DEFAULT 0,
         level INTEGER DEFAULT 1,
-        last_session_date TEXT,
         streak_days INTEGER DEFAULT 0,
         start_date TEXT,
+        last_session_date TEXT,
         completed_date TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
-        UNIQUE(user_id, book_id)
+        updated_at TEXT,
+        UNIQUE(user_id, book_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (book_id) REFERENCES books(id)
       )
     ''');
 
-    // Reading sessions table
     await db.execute('''
       CREATE TABLE reading_sessions (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         book_id TEXT NOT NULL,
-        minutes_read INTEGER NOT NULL,
-        day_number INTEGER NOT NULL,
+        minutes_read INTEGER DEFAULT 0,
+        day_number INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     ''');
 
-    // Achievements table
     await db.execute('''
       CREATE TABLE achievements (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
-        description TEXT NOT NULL,
+        description TEXT DEFAULT '',
         icon_url TEXT,
-        category TEXT NOT NULL,
-        target_value INTEGER NOT NULL,
-        xp_reward INTEGER NOT NULL
+        category TEXT DEFAULT 'streak',
+        target_value INTEGER DEFAULT 1,
+        xp_reward INTEGER DEFAULT 0
       )
     ''');
 
-    // User achievements table
     await db.execute('''
       CREATE TABLE user_achievements (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         achievement_id TEXT NOT NULL,
         unlocked_at TEXT NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE,
-        UNIQUE(user_id, achievement_id)
+        UNIQUE(user_id, achievement_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (achievement_id) REFERENCES achievements(id)
       )
     ''');
 
-    // Daily challenges table
     await db.execute('''
       CREATE TABLE daily_challenges (
         id TEXT PRIMARY KEY,
@@ -159,115 +128,163 @@ class DatabaseService {
         completed_minutes INTEGER DEFAULT 0,
         completed INTEGER DEFAULT 0,
         xp_reward INTEGER DEFAULT 50,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE(user_id, date)
+        UNIQUE(user_id, date),
+        FOREIGN KEY (user_id) REFERENCES users(id)
       )
     ''');
 
-    // Insert default achievements
-    await _insertDefaultAchievements(db);
+    await _createCurriculaTable(db);
+    await _seedAchievements(db);
   }
 
-  Future<void> _insertDefaultAchievements(Database db) async {
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createCurriculaTable(db);
+    }
+  }
+
+  Future<void> _createCurriculaTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS curricula (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        topic TEXT NOT NULL,
+        data_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        total_xp INTEGER DEFAULT 0,
+        streak INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    ''');
+  }
+
+  Future<void> _seedAchievements(Database db) async {
     final achievements = [
       {
-        'id': 'first_book',
-        'title': 'Page Turner',
-        'description': 'Complete your first book',
-        'icon_url': 'assets/icons/achievements/book.png',
-        'category': 'books',
+        'id': 'first_steps',
+        'title': 'First Steps',
+        'description': 'Complete your first reading day',
+        'category': 'streak',
         'target_value': 1,
-        'xp_reward': 100,
+        'xp_reward': 50,
       },
       {
-        'id': 'streak_7',
+        'id': 'week_warrior',
         'title': 'Week Warrior',
-        'description': 'Read for 7 days in a row',
-        'icon_url': 'assets/icons/achievements/fire.png',
+        'description': 'Maintain a 7-day reading streak',
         'category': 'streak',
         'target_value': 7,
         'xp_reward': 150,
       },
       {
-        'id': 'streak_30',
+        'id': 'dedicated_reader',
+        'title': 'Dedicated Reader',
+        'description': '14 consecutive reading days',
+        'category': 'streak',
+        'target_value': 14,
+        'xp_reward': 300,
+      },
+      {
+        'id': 'monthly_master',
         'title': 'Monthly Master',
-        'description': 'Read for 30 days in a row',
-        'icon_url': 'assets/icons/achievements/calendar.png',
+        'description': '30-day reading streak',
         'category': 'streak',
         'target_value': 30,
+        'xp_reward': 1000,
+      },
+      {
+        'id': 'bookworm',
+        'title': 'Bookworm',
+        'description': 'Finish reading a complete book',
+        'category': 'readingSpeed',
+        'target_value': 1,
         'xp_reward': 500,
       },
       {
-        'id': 'xp_1000',
-        'title': 'Knowledge Seeker',
-        'description': 'Earn 1000 total XP',
-        'icon_url': 'assets/icons/achievements/star.png',
-        'category': 'xp',
-        'target_value': 1000,
+        'id': 'speed_reader',
+        'title': 'Speed Reader',
+        'description': 'Complete 5 reading sessions',
+        'category': 'readingSpeed',
+        'target_value': 5,
         'xp_reward': 200,
       },
       {
-        'id': 'level_5',
-        'title': 'Rising Reader',
-        'description': 'Reach level 5',
-        'icon_url': 'assets/icons/achievements/levelup.png',
-        'category': 'level',
-        'target_value': 5,
-        'xp_reward': 300,
+        'id': 'perfect_score',
+        'title': 'Perfect Score',
+        'description': 'Read for 7 days in a single week',
+        'category': 'comprehension',
+        'target_value': 7,
+        'xp_reward': 100,
+      },
+      {
+        'id': 'social_butterfly',
+        'title': 'Social Butterfly',
+        'description': 'Have 10 AI chat conversations',
+        'category': 'social',
+        'target_value': 10,
+        'xp_reward': 200,
       },
     ];
 
-    for (final achievement in achievements) {
-      await db.insert('achievements', achievement);
+    for (final a in achievements) {
+      await db.insert('achievements', {
+        'id': a['id'],
+        'title': a['title'],
+        'description': a['description'],
+        'icon_url': 'assets/icons/achievements/${a['id']}.png',
+        'category': a['category'],
+        'target_value': a['target_value'],
+        'xp_reward': a['xp_reward'],
+      });
     }
   }
 
-  Future<void> initialize() async {
-    await database;
-  }
-
-  // Helper method to hash passwords
+  // Simple password hashing for local app
   String _hashPassword(String password) {
-    final bytes = utf8.encode(password);
-    final hash = sha256.convert(bytes);
-    return hash.toString();
+    final bytes = utf8.encode(password + 'booklify_salt_2024');
+    int hash = 5381;
+    for (final b in bytes) {
+      hash = ((hash << 5) + hash) + b;
+      hash = hash & 0xFFFFFFFF;
+    }
+    return hash.toRadixString(16);
   }
 
-  // Authentication
+  // ─── AUTH ────────────────────────────────────────────────────────────────
+
   Future<models.User> signUp({
     required String email,
     required String password,
     required String displayName,
   }) async {
     final db = await database;
-
-    final userId = _uuid.v4();
+    final id = const Uuid().v4();
     final now = DateTime.now().toIso8601String();
-    final passwordHash = _hashPassword(password);
 
-    try {
-      await db.insert('users', {
-        'id': userId,
-        'email': email,
-        'password_hash': passwordHash,
-        'display_name': displayName,
-        'xp': 0,
-        'level': 1,
-        'created_at': now,
-        'updated_at': now,
-      });
-
-      return models.User(
-        id: userId,
-        email: email,
-        displayName: displayName,
-        createdAt: DateTime.now(),
-      );
-    } catch (e) {
-      debugPrint('❌ Sign up error: $e');
-      throw Exception('Email already exists');
+    final existing = await db.query('users',
+        where: 'email = ?', whereArgs: [email.toLowerCase()]);
+    if (existing.isNotEmpty) {
+      throw Exception('An account with that email already exists.');
     }
+
+    await db.insert('users', {
+      'id': id,
+      'email': email.toLowerCase(),
+      'display_name': displayName,
+      'password_hash': _hashPassword(password),
+      'created_at': now,
+      'onboarding_complete': 0,
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_currentUserKey, id);
+
+    return models.User(
+      id: id,
+      email: email.toLowerCase(),
+      displayName: displayName,
+      createdAt: DateTime.now(),
+    );
   }
 
   Future<models.User> signIn({
@@ -275,25 +292,54 @@ class DatabaseService {
     required String password,
   }) async {
     final db = await database;
-    final passwordHash = _hashPassword(password);
 
-    debugPrint('🔐 Login attempt: $email');
-    debugPrint('🔑 Input password hash: $passwordHash');
-
-    final result = await db.query(
+    final results = await db.query(
       'users',
       where: 'email = ? AND password_hash = ?',
-      whereArgs: [email, passwordHash],
+      whereArgs: [email.toLowerCase(), _hashPassword(password)],
     );
 
-    debugPrint('🔍 Query result count: ${result.length}');
-
-    if (result.isEmpty) {
-      debugPrint('❌ Login failed: No user found');
-      throw Exception('Invalid email or password');
+    if (results.isEmpty) {
+      throw Exception('Invalid email or password.');
     }
 
-    final userData = result.first;
+    final userData = results.first;
+    final id = userData['id'] as String;
+
+    await db.update(
+      'users',
+      {'last_login_at': DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_currentUserKey, id);
+
+    return models.User(
+      id: id,
+      email: userData['email'] as String,
+      displayName: userData['display_name'] as String,
+      createdAt: DateTime.parse(userData['created_at'] as String),
+    );
+  }
+
+  Future<void> signOut() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_currentUserKey);
+  }
+
+  Future<models.User?> getCurrentUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString(_currentUserKey);
+    if (userId == null) return null;
+
+    final db = await database;
+    final results =
+        await db.query('users', where: 'id = ?', whereArgs: [userId]);
+    if (results.isEmpty) return null;
+
+    final userData = results.first;
     return models.User(
       id: userData['id'] as String,
       email: userData['email'] as String,
@@ -302,281 +348,418 @@ class DatabaseService {
     );
   }
 
-  Future<void> signOut() async {
-    // Local database doesn't need sign out logic
-    // Just clear current user state in the provider
-  }
+  // ─── BOOKS ───────────────────────────────────────────────────────────────
 
-  Future<models.User?> getCurrentUser() async {
-    // For local auth, we don't have sessions
-    // Return null - the app will show login screen
-    return null;
-  }
-
-  // Progress tracking
-  Future<Progress> getProgress(String userId, String bookId) async {
+  Future<List<Book>> getBooks(String userId) async {
     final db = await database;
+    final results = await db.query(
+      'books',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'upload_date DESC',
+    );
+    return results.map(_bookFromRow).toList();
+  }
 
-    final result = await db.query(
+  Future<Book?> getBook(String bookId) async {
+    final db = await database;
+    final results =
+        await db.query('books', where: 'id = ?', whereArgs: [bookId]);
+    if (results.isEmpty) return null;
+    return _bookFromRow(results.first);
+  }
+
+  Book _bookFromRow(Map<String, dynamic> row) {
+    List<BookChunk> chunks = [];
+    final chunksJson = row['chunks_json'] as String?;
+    if (chunksJson != null && chunksJson != '[]') {
+      try {
+        final data = json.decode(chunksJson) as List;
+        chunks = data
+            .map((c) => BookChunk.fromJson(c as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        debugPrint('Error parsing chunks: $e');
+      }
+    }
+
+    return Book(
+      id: row['id'] as String,
+      title: row['title'] as String,
+      author: row['author'] as String? ?? 'Unknown',
+      totalPages: row['total_pages'] as int? ?? 0,
+      content: row['content'] as String? ?? '',
+      uploadDate: DateTime.parse(row['upload_date'] as String),
+      language: row['language'] as String? ?? 'en',
+      description: row['description'] as String?,
+      chunks: chunks,
+    );
+  }
+
+  Future<String> saveBook(Book book, String userId) async {
+    final db = await database;
+    final id = book.id.isNotEmpty ? book.id : const Uuid().v4();
+
+    await db.insert(
+      'books',
+      {
+        'id': id,
+        'user_id': userId,
+        'title': book.title,
+        'author': book.author,
+        'total_pages': book.totalPages,
+        'content': book.content,
+        'upload_date': book.uploadDate.toIso8601String(),
+        'language': book.language ?? 'en',
+        'description': book.description,
+        'chunks_json':
+            json.encode(book.chunks.map((c) => c.toJson()).toList()),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    return id;
+  }
+
+  Future<void> updateBookChunks(String bookId, List<BookChunk> chunks) async {
+    final db = await database;
+    await db.update(
+      'books',
+      {'chunks_json': json.encode(chunks.map((c) => c.toJson()).toList())},
+      where: 'id = ?',
+      whereArgs: [bookId],
+    );
+  }
+
+  Future<void> deleteBook(String bookId) async {
+    final db = await database;
+    await db.delete('reading_progress',
+        where: 'book_id = ?', whereArgs: [bookId]);
+    await db.delete('reading_sessions',
+        where: 'book_id = ?', whereArgs: [bookId]);
+    await db.delete('books', where: 'id = ?', whereArgs: [bookId]);
+  }
+
+  // ─── PROGRESS ────────────────────────────────────────────────────────────
+
+  Future<Progress> getOrCreateProgress(String userId, String bookId,
+      {int totalDays = 30}) async {
+    final db = await database;
+    final results = await db.query(
       'reading_progress',
       where: 'user_id = ? AND book_id = ?',
       whereArgs: [userId, bookId],
     );
 
-    if (result.isEmpty) {
-      // Create new progress
-      final newProgressId = _uuid.v4();
-      final now = DateTime.now().toIso8601String();
-
-      await db.insert('reading_progress', {
-        'id': newProgressId,
-        'user_id': userId,
-        'book_id': bookId,
-        'current_day': 0,
-        'total_days': 30,
-        'completed_days': '[]',
-        'xp': 0,
-        'level': 1,
-        'streak_days': 0,
-        'start_date': now,
-        'created_at': now,
-        'updated_at': now,
-      });
-
-      return Progress(
-        id: newProgressId,
+    if (results.isEmpty) {
+      final id = const Uuid().v4();
+      final progress = Progress(
+        id: id,
         userId: userId,
         bookId: bookId,
         currentDay: 0,
-        totalDays: 30,
+        totalDays: totalDays,
         completedDays: [],
         xp: 0,
         level: 1,
         streakDays: 0,
         startDate: DateTime.now(),
       );
+      await saveProgress(progress);
+      return progress;
     }
 
-    final data = result.first;
+    return _progressFromRow(results.first);
+  }
+
+  Progress _progressFromRow(Map<String, dynamic> row) {
+    List<String> completedDays = [];
+    try {
+      completedDays = List<String>.from(
+          json.decode(row['completed_days_json'] as String? ?? '[]'));
+    } catch (_) {}
+
     return Progress(
-      id: data['id'] as String,
-      userId: data['user_id'] as String,
-      bookId: data['book_id'] as String,
-      currentDay: data['current_day'] as int,
-      totalDays: data['total_days'] as int,
-      completedDays: List<String>.from(
-        (data['completed_days']?.toString() != '[]' && data['completed_days'] != null)
-            ? (data['completed_days'].toString()).substring(1, (data['completed_days'].toString()).length - 1).split(',')
-            : [],
-      ),
-      xp: data['xp'] as int,
-      level: data['level'] as int,
-      lastSessionDate: data['last_session_date'] != null
-          ? DateTime.parse(data['last_session_date'] as String)
+      id: row['id'] as String,
+      userId: row['user_id'] as String,
+      bookId: row['book_id'] as String,
+      currentDay: row['current_day'] as int? ?? 0,
+      totalDays: row['total_days'] as int? ?? 30,
+      completedDays: completedDays,
+      xp: row['xp'] as int? ?? 0,
+      level: row['level'] as int? ?? 1,
+      streakDays: row['streak_days'] as int? ?? 0,
+      startDate: row['start_date'] != null
+          ? DateTime.parse(row['start_date'] as String)
           : null,
-      streakDays: data['streak_days'] as int,
-      startDate: data['start_date'] != null
-          ? DateTime.parse(data['start_date'] as String)
+      lastSessionDate: row['last_session_date'] != null
+          ? DateTime.parse(row['last_session_date'] as String)
           : null,
-      completedDate: data['completed_date'] != null
-          ? DateTime.parse(data['completed_date'] as String)
+      completedDate: row['completed_date'] != null
+          ? DateTime.parse(row['completed_date'] as String)
           : null,
     );
   }
 
-  Future<void> syncProgress(Progress progress) async {
+  Future<void> saveProgress(Progress progress) async {
     final db = await database;
-    final now = DateTime.now().toIso8601String();
-
     await db.insert(
       'reading_progress',
       {
-        'id': progress.id.isNotEmpty ? progress.id : _uuid.v4(),
+        'id': progress.id,
         'user_id': progress.userId,
         'book_id': progress.bookId,
         'current_day': progress.currentDay,
         'total_days': progress.totalDays,
-        'completed_days': jsonEncode(progress.completedDays),
+        'completed_days_json': json.encode(progress.completedDays),
         'xp': progress.xp,
         'level': progress.level,
-        'last_session_date': progress.lastSessionDate?.toIso8601String(),
         'streak_days': progress.streakDays,
         'start_date': progress.startDate?.toIso8601String(),
+        'last_session_date': progress.lastSessionDate?.toIso8601String(),
         'completed_date': progress.completedDate?.toIso8601String(),
-        'updated_at': now,
+        'updated_at': DateTime.now().toIso8601String(),
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
-  // Achievements
-  Future<List<Achievement>> fetchAchievements() async {
+  // ─── ACHIEVEMENTS ─────────────────────────────────────────────────────────
+
+  Future<List<Achievement>> getAchievements() async {
     final db = await database;
-
-    final result = await db.query('achievements');
-
-    return result.map((json) => Achievement(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      description: json['description'] as String,
-      iconUrl: json['icon_url'] as String? ?? 'assets/icons/achievements/default.png',
-      category: AchievementCategory.values.firstWhere(
-        (e) => e.name == (json['category'] as String? ?? 'streak'),
-        orElse: () => AchievementCategory.streak,
-      ),
-      targetValue: json['target_value'] as int,
-      xpReward: json['xp_reward'] as int,
-    )).toList();
+    final results =
+        await db.query('achievements', orderBy: 'xp_reward ASC');
+    return results.map(_achievementFromRow).toList();
   }
 
-  Future<List<Achievement>> fetchUserAchievements(String userId) async {
+  Future<List<Achievement>> getUserAchievements(String userId) async {
     final db = await database;
-
-    final result = await db.rawQuery('''
+    final results = await db.rawQuery('''
       SELECT a.*, ua.unlocked_at
       FROM achievements a
       INNER JOIN user_achievements ua ON a.id = ua.achievement_id
       WHERE ua.user_id = ?
+      ORDER BY ua.unlocked_at DESC
     ''', [userId]);
 
-    return result.map((json) => Achievement(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      description: json['description'] as String,
-      iconUrl: json['icon_url'] as String? ?? 'assets/icons/achievements/default.png',
+    return results
+        .map((row) => _achievementFromRow(row,
+            unlockedAt: DateTime.parse(row['unlocked_at'] as String)))
+        .toList();
+  }
+
+  Achievement _achievementFromRow(Map<String, dynamic> row,
+      {DateTime? unlockedAt}) {
+    return Achievement(
+      id: row['id'] as String,
+      title: row['title'] as String,
+      description: row['description'] as String? ?? '',
+      iconUrl: row['icon_url'] as String? ??
+          'assets/icons/achievements/default.png',
       category: AchievementCategory.values.firstWhere(
-        (e) => e.name == (json['category'] as String? ?? 'streak'),
+        (e) => e.name == (row['category'] as String? ?? 'streak'),
         orElse: () => AchievementCategory.streak,
       ),
-      targetValue: json['target_value'] as int,
-      xpReward: json['xp_reward'] as int,
-      unlockedAt: DateTime.parse(json['unlocked_at'] as String),
-    )).toList();
+      targetValue: row['target_value'] as int? ?? 1,
+      xpReward: row['xp_reward'] as int? ?? 0,
+      unlockedAt: unlockedAt,
+    );
   }
 
   Future<void> unlockAchievement(String userId, String achievementId) async {
     final db = await database;
-
-    await db.insert(
-      'user_achievements',
-      {
-        'id': _uuid.v4(),
-        'user_id': userId,
-        'achievement_id': achievementId,
-        'unlocked_at': DateTime.now().toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.ignore,
-    );
+    try {
+      await db.insert(
+        'user_achievements',
+        {
+          'id': const Uuid().v4(),
+          'user_id': userId,
+          'achievement_id': achievementId,
+          'unlocked_at': DateTime.now().toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    } catch (e) {
+      debugPrint('Achievement unlock error (may already be unlocked): $e');
+    }
   }
 
-  // Daily challenges
+  /// Check and unlock achievements based on current progress.
+  Future<List<Achievement>> checkAndUnlockAchievements(
+      String userId, Progress progress) async {
+    final db = await database;
+    final allAchievements = await getAchievements();
+    final userAchievements = await getUserAchievements(userId);
+    final unlockedIds = userAchievements.map((a) => a.id).toSet();
+
+    final sessionCount = Sqflite.firstIntValue(await db.rawQuery(
+            'SELECT COUNT(*) FROM reading_sessions WHERE user_id = ?',
+            [userId])) ??
+        0;
+
+    final newlyUnlocked = <Achievement>[];
+
+    for (final achievement in allAchievements) {
+      if (unlockedIds.contains(achievement.id)) continue;
+
+      bool shouldUnlock = false;
+
+      switch (achievement.id) {
+        case 'first_steps':
+          shouldUnlock = progress.completedDays.isNotEmpty;
+          break;
+        case 'week_warrior':
+          shouldUnlock = progress.streakDays >= 7;
+          break;
+        case 'dedicated_reader':
+          shouldUnlock = progress.streakDays >= 14;
+          break;
+        case 'monthly_master':
+          shouldUnlock = progress.streakDays >= 30;
+          break;
+        case 'bookworm':
+          shouldUnlock = progress.isCompleted;
+          break;
+        case 'speed_reader':
+          shouldUnlock = sessionCount >= 5;
+          break;
+        case 'perfect_score':
+          shouldUnlock = progress.completedDays.length >= 7;
+          break;
+        case 'social_butterfly':
+          // Checked separately via chat count
+          break;
+      }
+
+      if (shouldUnlock) {
+        await unlockAchievement(userId, achievement.id);
+        newlyUnlocked
+            .add(achievement.copyWith(unlockedAt: DateTime.now()));
+      }
+    }
+
+    return newlyUnlocked;
+  }
+
+  // ─── DAILY CHALLENGES ─────────────────────────────────────────────────────
+
   Future<Map<String, dynamic>> getDailyChallenge(String userId) async {
     final db = await database;
     final today = DateTime.now().toIso8601String().split('T')[0];
 
-    final result = await db.query(
+    final results = await db.query(
       'daily_challenges',
       where: 'user_id = ? AND date = ?',
       whereArgs: [userId, today],
     );
 
-    if (result.isEmpty) {
-      // Generate new daily challenge
-      final challengeId = _uuid.v4();
-      final newChallenge = {
-        'id': challengeId,
+    if (results.isEmpty) {
+      final id = const Uuid().v4();
+      await db.insert('daily_challenges', {
+        'id': id,
         'user_id': userId,
         'date': today,
         'target_minutes': 15,
         'completed_minutes': 0,
         'completed': 0,
         'xp_reward': 50,
-        'created_at': DateTime.now().toIso8601String(),
+      });
+      return {
+        'target_minutes': 15,
+        'completed_minutes': 0,
+        'completed': false,
+        'xp_reward': 50,
       };
-
-      await db.insert('daily_challenges', newChallenge);
-      return newChallenge;
     }
 
-    return result.first;
+    final row = results.first;
+    return {
+      'target_minutes': row['target_minutes'] as int,
+      'completed_minutes': row['completed_minutes'] as int,
+      'completed': (row['completed'] as int) == 1,
+      'xp_reward': row['xp_reward'] as int,
+    };
   }
 
   Future<void> updateDailyChallenge(
-    String userId,
-    int additionalMinutes,
-  ) async {
+      String userId, int additionalMinutes) async {
     final db = await database;
     final today = DateTime.now().toIso8601String().split('T')[0];
-
     final current = await getDailyChallenge(userId);
-    final completedMinutes = (current['completed_minutes'] as int) + additionalMinutes;
-    final targetMinutes = current['target_minutes'] as int;
+    final newMinutes =
+        (current['completed_minutes'] as int) + additionalMinutes;
+    final isCompleted =
+        newMinutes >= (current['target_minutes'] as int);
 
     await db.update(
       'daily_challenges',
       {
-        'completed_minutes': completedMinutes,
-        'completed': completedMinutes >= targetMinutes ? 1 : 0,
+        'completed_minutes': newMinutes,
+        'completed': isCompleted ? 1 : 0,
       },
       where: 'user_id = ? AND date = ?',
       whereArgs: [userId, today],
     );
   }
 
-  // Leaderboard
-  Future<List<Map<String, dynamic>>> getLeaderboard() async {
+  // ─── READING SESSIONS ─────────────────────────────────────────────────────
+
+  Future<void> logReadingSession({
+    required String userId,
+    required String bookId,
+    required int minutesRead,
+    required int dayNumber,
+  }) async {
     final db = await database;
-
-    final result = await db.query(
-      'users',
-      columns: ['id', 'display_name', 'xp', 'level'],
-      orderBy: 'xp DESC',
-      limit: 100,
-    );
-
-    return result.map((row) => {
-      'id': row['id'],
-      'display_name': row['display_name'],
-      'xp': row['xp'],
-      'level': row['level'],
-    }).toList();
+    await db.insert('reading_sessions', {
+      'id': const Uuid().v4(),
+      'user_id': userId,
+      'book_id': bookId,
+      'minutes_read': minutesRead,
+      'day_number': dayNumber,
+      'created_at': DateTime.now().toIso8601String(),
+    });
   }
 
-  // Check streak
   Future<int> getUserStreak(String userId) async {
     final db = await database;
-
-    final result = await db.query(
+    final results = await db.query(
       'reading_sessions',
-      columns: ['created_at'],
       where: 'user_id = ?',
       whereArgs: [userId],
       orderBy: 'created_at DESC',
-      limit: 30,
+      limit: 60,
+      columns: ['created_at'],
     );
 
-    if (result.isEmpty) return 0;
+    if (results.isEmpty) return 0;
 
     final now = DateTime.now();
     int streak = 0;
-    DateTime? checkDate;
+    String? lastDateStr;
 
-    for (final session in result) {
-      final sessionDate = DateTime.parse(session['created_at'] as String);
+    for (final session in results) {
+      final sessionDate =
+          DateTime.parse(session['created_at'] as String);
+      final dateStr =
+          sessionDate.toIso8601String().split('T')[0];
 
-      if (checkDate == null) {
+      if (lastDateStr == null) {
         final daysDiff = now.difference(sessionDate).inDays;
         if (daysDiff <= 1) {
           streak++;
-          checkDate = sessionDate;
+          lastDateStr = dateStr;
         } else {
           break;
         }
       } else {
-        final daysDiff = checkDate.difference(sessionDate).inDays;
-        if (daysDiff <= 1) {
+        final lastDate = DateTime.parse(lastDateStr);
+        final daysDiff = lastDate.difference(sessionDate).inDays;
+        if (daysDiff <= 1 && dateStr != lastDateStr) {
           streak++;
-          checkDate = sessionDate;
+          lastDateStr = dateStr;
+        } else if (dateStr == lastDateStr) {
+          continue; // Same day, skip
         } else {
           break;
         }
@@ -586,149 +769,94 @@ class DatabaseService {
     return streak;
   }
 
-  // Log reading session
-  Future<void> logReadingSession({
-    required String userId,
-    required String bookId,
-    required int minutesRead,
-    required int dayNumber,
-  }) async {
+  Future<int> getTotalReadingMinutes(String userId) async {
     final db = await database;
-
-    await db.insert('reading_sessions', {
-      'id': _uuid.v4(),
-      'user_id': userId,
-      'book_id': bookId,
-      'minutes_read': minutesRead,
-      'day_number': dayNumber,
-      'created_at': DateTime.now().toIso8601String(),
-    });
+    final result = await db.rawQuery(
+        'SELECT SUM(minutes_read) as total FROM reading_sessions WHERE user_id = ?',
+        [userId]);
+    return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  // Update user XP and level
-  Future<void> updateUserXP(String userId, int xpToAdd) async {
+  Future<int> getTotalBooksRead(String userId) async {
     final db = await database;
-
-    final result = await db.query(
-      'users',
-      where: 'id = ?',
-      whereArgs: [userId],
-    );
-
-    if (result.isNotEmpty) {
-      final currentXP = result.first['xp'] as int;
-      final newXP = currentXP + xpToAdd;
-      final newLevel = (newXP ~/ 500) + 1; // Level up every 500 XP
-
-      await db.update(
-        'users',
-        {
-          'xp': newXP,
-          'level': newLevel,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-        where: 'id = ?',
-        whereArgs: [userId],
-      );
-    }
+    final result = await db.rawQuery(
+        'SELECT COUNT(*) as total FROM reading_progress WHERE user_id = ? AND completed_date IS NOT NULL',
+        [userId]);
+    return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  // Get user XP and level
-  Future<Map<String, int>> getUserXP(String userId) async {
+  // ─── CURRICULUM ───────────────────────────────────────────────────────────
+
+  Future<void> saveCurriculum(Map<String, dynamic> curriculumJson,
+      {required String userId,
+      required String topic,
+      int totalXP = 0,
+      int streak = 0}) async {
     final db = await database;
-
-    final result = await db.query(
-      'users',
-      columns: ['xp', 'level'],
-      where: 'id = ?',
-      whereArgs: [userId],
-    );
-
-    if (result.isEmpty) {
-      return {'xp': 0, 'level': 1};
-    }
-
-    return {
-      'xp': result.first['xp'] as int,
-      'level': result.first['level'] as int,
-    };
-  }
-
-  // ─── Book Management ─────────────────────────────────────────────────────────
-
-  Future<List<Map<String, dynamic>>> getBooks(String userId) async {
-    final db = await database;
-    return db.query(
-      'books',
-      where: 'user_id = ?',
-      whereArgs: [userId],
-      orderBy: 'created_at DESC',
-    );
-  }
-
-  Future<Map<String, dynamic>?> getBook(String bookId) async {
-    final db = await database;
-    final result = await db.query(
-      'books',
-      where: 'id = ?',
-      whereArgs: [bookId],
-      limit: 1,
-    );
-    return result.isEmpty ? null : result.first;
-  }
-
-  Future<void> saveBook({
-    required String id,
-    required String userId,
-    required String title,
-    required String author,
-    String? coverUrl,
-    int totalDays = 7,
-    String? content,
-    String? chunksJson,
-  }) async {
-    final db = await database;
+    final id = curriculumJson['id'] as String? ?? const Uuid().v4();
     await db.insert(
-      'books',
+      'curricula',
       {
         'id': id,
         'user_id': userId,
-        'title': title,
-        'author': author,
-        'cover_url': coverUrl,
-        'total_days': totalDays,
-        'content': content,
-        'chunks_json': chunksJson,
-        'created_at': DateTime.now().toIso8601String(),
+        'topic': topic,
+        'data_json': json.encode(curriculumJson),
+        'created_at':
+            curriculumJson['created_at'] as String? ??
+                DateTime.now().toIso8601String(),
+        'total_xp': totalXP,
+        'streak': streak,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
-  Future<void> updateBookChunks(String bookId, String chunksJson) async {
+  Future<Map<String, dynamic>?> getCurriculum(String userId) async {
     final db = await database;
-    await db.update(
-      'books',
-      {'chunks_json': chunksJson},
-      where: 'id = ?',
-      whereArgs: [bookId],
-    );
-  }
-
-  Future<void> deleteBook(String bookId) async {
-    final db = await database;
-    await db.delete('books', where: 'id = ?', whereArgs: [bookId]);
-  }
-
-  Future<Map<String, dynamic>?> getReadingProgressForBook(
-      String userId, String bookId) async {
-    final db = await database;
-    final result = await db.query(
-      'reading_progress',
-      where: 'user_id = ? AND book_id = ?',
-      whereArgs: [userId, bookId],
+    final results = await db.query(
+      'curricula',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'created_at DESC',
       limit: 1,
     );
-    return result.isEmpty ? null : result.first;
+    if (results.isEmpty) return null;
+
+    final row = results.first;
+    final data = json.decode(row['data_json'] as String) as Map<String, dynamic>;
+    // Merge persisted XP/streak back in
+    data['total_xp'] = row['total_xp'] as int? ?? 0;
+    data['streak'] = row['streak'] as int? ?? 0;
+    return data;
+  }
+
+  Future<void> updateCurriculumProgress(
+      String curriculumId, Map<String, dynamic> updatedJson,
+      {int? totalXP, int? streak}) async {
+    final db = await database;
+    final updates = <String, dynamic>{
+      'data_json': json.encode(updatedJson),
+    };
+    if (totalXP != null) updates['total_xp'] = totalXP;
+    if (streak != null) updates['streak'] = streak;
+
+    await db.update(
+      'curricula',
+      updates,
+      where: 'id = ?',
+      whereArgs: [curriculumId],
+    );
+  }
+
+  Future<void> deleteCurriculum(String userId) async {
+    final db = await database;
+    await db.delete('curricula', where: 'user_id = ?', whereArgs: [userId]);
+  }
+
+  Future<bool> hasCurriculum(String userId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM curricula WHERE user_id = ?', [userId]);
+    return (Sqflite.firstIntValue(result) ?? 0) > 0;
   }
 }
