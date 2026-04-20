@@ -131,7 +131,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 color: Colors.white.withValues(alpha: 0.2),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.eco,
+                              child: const Icon(Icons.auto_stories,
                                   color: Colors.white, size: 38),
                             ),
                             const SizedBox(height: 12),

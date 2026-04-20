@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'data/services/seed_data_service.dart';
 import 'app.dart';
+
+// Candidate .env paths tried in order:
+//  1. Bundled asset (works on device + simulator)
+//  2. Root project .env on the developer's Mac (simulator / macOS only)
+const _kProjectEnvPath =
+    '/Users/nilufar_khaydarova/Documents/Gamifiedreadingapp/.env';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,15 +27,39 @@ Future<void> main() async {
     return true;
   };
 
-  // Load environment variables (non-fatal — app works without API keys)
+  // Load .env — try bundled asset first, fall back to project root file
+  bool loaded = false;
   try {
     await dotenv.load(fileName: 'assets/.env');
-    debugPrint('✅ Environment variables loaded');
-  } catch (e) {
-    debugPrint('⚠️ Could not load .env — running in demo mode: $e');
-    // CRITICAL: initialise dotenv with an empty map so dotenv.env[...] never
-    // throws NotInitializedError later in api_keys.dart
-    dotenv.testLoad(fileInput: '');
+    if (dotenv.env['ANTHROPIC_API_KEY']?.isNotEmpty == true) {
+      debugPrint('✅ Loaded env from assets/.env');
+      loaded = true;
+    }
+  } catch (_) {}
+
+  if (!loaded) {
+    try {
+      final f = File(_kProjectEnvPath);
+      if (await f.exists()) {
+        final raw = await f.readAsString();
+        // Merge into dotenv — re-parse the file content
+        dotenv.testLoad(fileInput: raw);
+        // Normalise: CLAUDE_API_KEY → ANTHROPIC_API_KEY
+        if ((dotenv.env['ANTHROPIC_API_KEY'] ?? '').isEmpty &&
+            (dotenv.env['CLAUDE_API_KEY'] ?? '').isNotEmpty) {
+          dotenv.env['ANTHROPIC_API_KEY'] = dotenv.env['CLAUDE_API_KEY']!;
+        }
+        debugPrint('✅ Loaded env from project root .env');
+        loaded = true;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not read project .env: $e');
+    }
+  }
+
+  if (!loaded) {
+    debugPrint('⚠️ No .env found — running without API keys');
+    try { dotenv.testLoad(fileInput: ''); } catch (_) {}
   }
 
   debugPrint('✅ Booklify starting with local database...');

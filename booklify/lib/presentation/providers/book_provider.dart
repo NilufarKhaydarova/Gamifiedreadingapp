@@ -5,13 +5,11 @@ import '../../data/models/book.dart';
 import '../../data/services/database_service.dart';
 import '../../data/services/claude_service.dart';
 import 'auth_provider.dart';
+import 'user_stats_provider.dart';
 
 // ─── Service Providers ────────────────────────────────────────────────────────
-// Note: databaseServiceProvider is defined in auth_provider.dart
 
-final _claudeServiceProvider = Provider<ClaudeService>((ref) {
-  return ClaudeService();
-});
+final _claudeServiceProvider = Provider<ClaudeService>((ref) => ClaudeService());
 
 // ─── Books Notifier ───────────────────────────────────────────────────────────
 
@@ -38,57 +36,163 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
     if (chunksJson != null && chunksJson.isNotEmpty) {
       try {
         final list = json.decode(chunksJson) as List;
-        chunks = list.map((c) => BookChunk.fromJson(c as Map<String, dynamic>)).toList();
-      } catch (e) {
+        chunks = list
+            .map((c) => BookChunk.fromJson(c as Map<String, dynamic>))
+            .toList();
+      } catch (_) {
         chunks = [];
       }
     }
-
     return Book(
       id: row['id'] as String,
       title: row['title'] as String,
       author: row['author'] as String,
       totalPages: (row['total_days'] as int? ?? 7) * 30,
       content: row['content'] as String? ?? '',
-      uploadDate: DateTime.tryParse(row['created_at'] as String? ?? '') ?? DateTime.now(),
+      uploadDate:
+          DateTime.tryParse(row['created_at'] as String? ?? '') ?? DateTime.now(),
       coverUrl: row['cover_url'] as String?,
       chunks: chunks,
     );
   }
 
-  /// Open a book for reading. If it has no chunks, Claude generates a reading plan.
-  /// Returns the book with chunks populated.
+  // ── Open / prepare ─────────────────────────────────────────────────────────
+
+  /// Returns the book ready to read (generates chunks if needed).
   Future<Book> prepareForReading(String bookId) async {
     final current = state.valueOrNull ?? [];
     final book = current.firstWhere((b) => b.id == bookId);
-
     if (book.chunks.isNotEmpty) return book;
 
-    // Generate reading plan with Claude
-    final chunks = await _claude.generateReadingPlan(
-      title: book.title,
-      author: book.author,
-      totalDays: 7,
-    );
+    List<BookChunk> chunks;
+    if (book.content.isNotEmpty) {
+      // User provided real text — split it into 7 days
+      chunks = _chunksFromText(book.content, book.title);
+    } else {
+      // No text — Claude generates an educational 7-day guide
+      chunks = await _claude.generateReadingPlan(
+        title: book.title,
+        author: book.author,
+        totalDays: 7,
+      );
+    }
 
-    // Persist to DB
     final chunksJson = json.encode(chunks.map((c) => c.toJson()).toList());
     await _db.updateBookChunks(bookId, chunksJson);
 
-    // Update state
     final updatedBook = book.copyWith(chunks: chunks);
-    final updatedList = current.map((b) => b.id == bookId ? updatedBook : b).toList();
-    state = AsyncData(updatedList);
+    state = AsyncData(
+        current.map((b) => b.id == bookId ? updatedBook : b).toList());
+
+    // Record that a book was started (for achievements)
+    await ref.read(userStatsProvider.notifier).recordBookStarted();
 
     return updatedBook;
   }
 
-  /// Add a new book to the library (no content — Claude generates on first open).
+  /// Creates day-by-day chunks from actual book text.
+  List<BookChunk> _chunksFromText(String content, String title,
+      {int days = 7}) {
+    final paragraphs =
+        content.split('\n\n').where((p) => p.trim().isNotEmpty).toList();
+    if (paragraphs.isEmpty) {
+      // Edge case: single block of text — split by newlines
+      final lines = content
+          .split('\n')
+          .where((l) => l.trim().isNotEmpty)
+          .toList();
+      return _chunksFromText(lines.join('\n\n'), title, days: days);
+    }
+
+    final parasPerDay = (paragraphs.length / days).ceil().clamp(1, paragraphs.length);
+    final chunks = <BookChunk>[];
+    int charOffset = 0;
+
+    for (int day = 0; day < days; day++) {
+      final start = day * parasPerDay;
+      if (start >= paragraphs.length) break;
+      final end = (start + parasPerDay).clamp(0, paragraphs.length);
+      final dayParas = paragraphs.sublist(start, end);
+      final dayText = dayParas.join('\n\n');
+
+      final subChunks = dayParas.asMap().entries.map((e) {
+        return SubChunk(
+          id: 'sub-${day + 1}-${e.key}',
+          content: e.value,
+          type: e.value.split(' ').length > 300
+              ? ChunkType.chapter
+              : ChunkType.section,
+          wordCount: e.value.split(' ').length,
+        );
+      }).toList();
+
+      // Episode title: "Day N — [first few words]"
+      final firstWords = dayParas.first
+          .split(' ')
+          .take(6)
+          .join(' ')
+          .replaceAll('\n', ' ');
+      final preview = dayParas.first.length > 120
+          ? '${dayParas.first.substring(0, 120)}…'
+          : dayParas.first;
+
+      chunks.add(BookChunk(
+        id: 'day-${day + 1}',
+        dayNumber: day + 1,
+        episodeTitle: 'Day ${day + 1} — $firstWords',
+        keyIdea: '',
+        preview: preview,
+        difficulty: Difficulty.moderate,
+        estimatedMinutes: (dayText.split(' ').length / 220).ceil().clamp(5, 90),
+        startOffset: charOffset,
+        endOffset: charOffset + dayText.length,
+      ));
+      charOffset += dayText.length;
+    }
+
+    return chunks;
+  }
+
+  // ── Chunk progress ─────────────────────────────────────────────────────────
+
+  /// Mark a specific chunk as completed and persist to DB.
+  Future<void> markChunkComplete(String bookId, String chunkId) async {
+    final current = state.valueOrNull ?? [];
+    final bookIndex = current.indexWhere((b) => b.id == bookId);
+    if (bookIndex == -1) return;
+
+    final book = current[bookIndex];
+    final updatedChunks = book.chunks.map((c) {
+      if (c.id == chunkId && !c.completed) {
+        return c.copyWith(completed: true, completedDate: DateTime.now());
+      }
+      return c;
+    }).toList();
+
+    final chunksJson =
+        json.encode(updatedChunks.map((c) => c.toJson()).toList());
+    await _db.updateBookChunks(bookId, chunksJson);
+
+    final updatedBook = book.copyWith(chunks: updatedChunks);
+    final updatedList = List<Book>.from(current);
+    updatedList[bookIndex] = updatedBook;
+    state = AsyncData(updatedList);
+
+    // If all chunks are now complete → record book finished
+    if (updatedChunks.every((c) => c.completed)) {
+      await ref.read(userStatsProvider.notifier).recordBookFinished();
+    }
+  }
+
+  // ── Library CRUD ───────────────────────────────────────────────────────────
+
+  /// Add a book by title + author (Claude generates guide on first open).
   Future<void> addBook({
     required String userId,
     required String title,
     required String author,
     String? coverUrl,
+    String? content,
   }) async {
     final id = _uuid.v4();
     await _db.saveBook(
@@ -98,21 +202,21 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
       author: author,
       coverUrl: coverUrl,
       totalDays: 7,
+      content: content,
     );
-
-    // Refresh list
     final updated = await _loadBooks(userId);
     state = AsyncData(updated);
+
+    // Track first book / books_3 achievements
+    await ref.read(userStatsProvider.notifier).recordBookStarted();
   }
 
-  /// Remove a book from the library.
   Future<void> removeBook(String bookId) async {
     await _db.deleteBook(bookId);
     final current = state.valueOrNull ?? [];
     state = AsyncData(current.where((b) => b.id != bookId).toList());
   }
 
-  /// Refresh books from DB.
   Future<void> refresh() async {
     final user = ref.read(authProvider).user;
     if (user == null) return;
@@ -120,14 +224,13 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
     state = await AsyncValue.guard(() => _loadBooks(user.id));
   }
 
-  /// Get progress for a book (0.0 – 1.0).
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
   double progressFor(Book book) {
     if (book.chunks.isEmpty) return 0.0;
-    final completed = book.chunks.where((c) => c.completed).length;
-    return completed / book.chunks.length;
+    return book.chunks.where((c) => c.completed).length / book.chunks.length;
   }
 
-  /// Get the next unread chunk for a book, or the last one.
   BookChunk? currentChunkFor(Book book) {
     if (book.chunks.isEmpty) return null;
     return book.chunks.firstWhere(
@@ -139,11 +242,8 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
-final booksProvider = AsyncNotifierProvider<BooksNotifier, List<Book>>(() {
-  return BooksNotifier();
-});
+final booksProvider =
+    AsyncNotifierProvider<BooksNotifier, List<Book>>(() => BooksNotifier());
 
-/// Convenience: books for current user with progress
-final userBooksProvider = Provider<List<Book>>((ref) {
-  return ref.watch(booksProvider).valueOrNull ?? [];
-});
+final userBooksProvider = Provider<List<Book>>(
+    (ref) => ref.watch(booksProvider).valueOrNull ?? []);
