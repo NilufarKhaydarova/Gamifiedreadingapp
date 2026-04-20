@@ -63,16 +63,16 @@ class TreePainter extends CustomPainter {
 
     switch (weather) {
       case GardenWeather.sunny:
-        skyColor1 = Color(0xFF87CEEB); // Sky blue
-        skyColor2 = Color(0xFFE0F7FA); // Light cyan
+        skyColor1 = const Color(0xFF87CEEB); // Sky blue
+        skyColor2 = const Color(0xFFE0F7FA); // Light cyan
         break;
       case GardenWeather.cloudy:
-        skyColor1 = Color(0xFFB0BEC5); // Blue grey
-        skyColor2 = Color(0xFFCFD8DC); // Light grey
+        skyColor1 = const Color(0xFFB0BEC5); // Blue grey
+        skyColor2 = const Color(0xFFCFD8DC); // Light grey
         break;
       case GardenWeather.stormy:
-        skyColor1 = Color(0xFF546E7A); // Dark blue grey
-        skyColor2 = Color(0xFF78909C); // Medium grey
+        skyColor1 = const Color(0xFF546E7A); // Dark blue grey
+        skyColor2 = const Color(0xFF78909C); // Medium grey
         break;
     }
 
@@ -96,13 +96,13 @@ class TreePainter extends CustomPainter {
 
   void _drawGround(Canvas canvas, Size size) {
     final groundPaint = Paint()
-      ..color = Color(0xFF5D4E37); // Garden soil
+      ..color = const Color(0xFF5D4E37); // Garden soil
 
     canvas.drawRRect(
       RRect.fromRectAndCorners(
         Rect.fromLTWH(0, size.height * 0.85, size.width, size.height * 0.15),
-        topLeft: Radius.circular(20),
-        topRight: Radius.circular(20),
+        topLeft: const Radius.circular(20),
+        topRight: const Radius.circular(20),
       ),
       groundPaint,
     );
@@ -110,7 +110,7 @@ class TreePainter extends CustomPainter {
 
   void _drawGrass(Canvas canvas, Size size, Offset center) {
     final grassPaint = Paint()
-      ..color = Color(0xFF6B8E23) // Grass green
+      ..color = const Color(0xFF6B8E23) // Grass green
       ..strokeWidth = 2.0;
 
     // Animated grass that sways with the weather
@@ -146,7 +146,7 @@ class TreePainter extends CustomPainter {
     final trunkWidth = 20.0 + (30.0 * growthStage * animation.value);
 
     // Draw trunk with gradient
-    final trunkGradient = LinearGradient(
+    final trunkGradient = const LinearGradient(
       colors: [
         Color(0xFF8B4513), // Saddle brown
         Color(0xFFA0522D), // Sienna
@@ -183,7 +183,7 @@ class TreePainter extends CustomPainter {
 
   void _drawBranches(Canvas canvas, Size size, Offset center, double trunkHeight, double growth) {
     final branchPaint = Paint()
-      ..color = Color(0xFF8B4513)
+      ..color = const Color(0xFF8B4513)
       ..strokeWidth = 8.0 * growth
       ..strokeCap = StrokeCap.round;
 
@@ -217,7 +217,7 @@ class TreePainter extends CustomPainter {
 
   void _drawSubBranches(Canvas canvas, Size size, Offset center, double trunkHeight, double growth) {
     final branchPaint = Paint()
-      ..color = Color(0xFF8B4513)
+      ..color = const Color(0xFF8B4513)
       ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round;
 
@@ -262,7 +262,7 @@ class TreePainter extends CustomPainter {
     for (int i = 0; i < completedDays; i++) {
       final leafPaint = Paint()
         ..color = leafColors[i % leafColors.length].withOpacity(0.8)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.0);
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
 
       // Position leaves around the canopy with animation delays
       final angle = (i / completedDays) * 2 * math.pi;
@@ -286,10 +286,10 @@ class TreePainter extends CustomPainter {
 
   void _drawFlowers(Canvas canvas, Size size, Offset center) {
     final flowerColors = [
-      Color(0xFFF48FB1), // Pink
-      Color(0xFFFFE082), // Yellow
-      Color(0xFFCE93D8), // Purple
-      Color(0xFFFFAB91), // Orange
+      const Color(0xFFF48FB1), // Pink
+      const Color(0xFFFFE082), // Yellow
+      const Color(0xFFCE93D8), // Purple
+      const Color(0xFFFFAB91), // Orange
     ];
 
     final trunkHeight = size.height * 0.4 * growthStage;
@@ -297,7 +297,7 @@ class TreePainter extends CustomPainter {
     for (int i = 0; i < level; i++) {
       final flowerPaint = Paint()
         ..color = flowerColors[i % flowerColors.length]
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.0);
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0);
 
       // Position flowers in upper canopy
       final angle = (i / level) * 2 * math.pi + (animation.value * 2 * math.pi);
@@ -327,7 +327,7 @@ class TreePainter extends CustomPainter {
         canvas.drawCircle(
           Offset(flowerX, flowerY),
           2.5 * animatedValue,
-          Paint()..color = Color(0xFFFFEB3B), // Gold center
+          Paint()..color = const Color(0xFFFFEB3B), // Gold center
         );
       }
     }
@@ -335,8 +335,8 @@ class TreePainter extends CustomPainter {
 
   void _drawLevelBadges(Canvas canvas, Size size, Offset center) {
     final badgePaint = Paint()
-      ..color = Color(0xFFFFD700) // Gold
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2.0);
+      ..color = const Color(0xFFFFD700) // Gold
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
 
     final badgeCount = (level / 5).floor();
 
@@ -389,8 +389,8 @@ class TreePainter extends CustomPainter {
 
   void _drawSun(Canvas canvas, Size size) {
     final sunPaint = Paint()
-      ..color = Color(0xFFFFF176).withOpacity(0.8)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 10.0);
+      ..color = const Color(0xFFFFF176).withOpacity(0.8)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10.0);
 
     canvas.drawCircle(
       Offset(size.width * 0.85, size.height * 0.15),
@@ -401,8 +401,8 @@ class TreePainter extends CustomPainter {
 
   void _drawClouds(Canvas canvas, Size size) {
     final cloudPaint = Paint()
-      ..color = Color(0xFFFFFFFF).withOpacity(0.7)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 5.0);
+      ..color = const Color(0xFFFFFFFF).withOpacity(0.7)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0);
 
     for (int i = 0; i < 3; i++) {
       final x = size.width * 0.2 + (i * size.width * 0.3);
@@ -416,7 +416,7 @@ class TreePainter extends CustomPainter {
 
   void _drawRain(Canvas canvas, Size size) {
     final rainPaint = Paint()
-      ..color = Color(0xFF64B5F6).withOpacity(0.5)
+      ..color = const Color(0xFF64B5F6).withOpacity(0.5)
       ..strokeWidth = 1.0;
 
     for (int i = 0; i < 20; i++) {
