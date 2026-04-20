@@ -1,6 +1,5 @@
 import 'package:uuid/uuid.dart';
 import '../models/book.dart';
-import 'openai_service.dart';
 
 // Internal text chunk used during splitting
 class _TextChunk {
@@ -16,10 +15,7 @@ class _TextChunk {
 }
 
 class SmartChunkerService {
-  final OpenAIService? _openAI;
-
-  /// [openAI] is optional. When null, simple fallback metadata is used.
-  SmartChunkerService({OpenAIService? openAI}) : _openAI = openAI;
+  SmartChunkerService();
 
   // Main chunking function - creates reading plan from book content.
   Future<List<BookChunk>> createReadingPlan({
@@ -70,32 +66,12 @@ class SmartChunkerService {
       // Content analysis for difficulty
       final analysis = _analyzeContent(combinedContent);
 
-      // Try AI metadata, fall back to simple titles
-      String episodeTitle = 'Day $dayNumber';
-      String keyIdea = '';
-      String preview = combinedContent.length > 200
+      // Fallback metadata (ClaudeService.generateSmartChunks handles AI enrichment)
+      final episodeTitle = _generateFallbackTitle(combinedContent, dayNumber);
+      const keyIdea = '';
+      final preview = combinedContent.length > 200
           ? '${combinedContent.substring(0, 200)}…'
           : combinedContent;
-
-      if (_openAI != null) {
-        try {
-          final metadata = await _openAI!.generateEpisodeMetadata(
-            bookTitle: bookTitle,
-            author: author,
-            chunkContent: combinedContent,
-            chunkNumber: dayNumber,
-            totalChunks: dailyGroups.length,
-          );
-          episodeTitle = metadata.episodeTitle;
-          keyIdea = metadata.keyIdea;
-          preview = metadata.preview;
-        } catch (_) {
-          // AI unavailable — use fallback
-          episodeTitle = _generateFallbackTitle(combinedContent, dayNumber);
-        }
-      } else {
-        episodeTitle = _generateFallbackTitle(combinedContent, dayNumber);
-      }
 
       enrichedChunks.add(BookChunk(
         id: 'day-$dayNumber',

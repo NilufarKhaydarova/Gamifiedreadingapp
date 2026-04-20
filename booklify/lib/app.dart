@@ -12,7 +12,7 @@ class BooklifyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Booklify',
-      theme: AppTheme.light,
+      theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
       home: const _AuthGate(),
     );

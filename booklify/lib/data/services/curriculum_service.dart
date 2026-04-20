@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/curriculum.dart';
-import 'claude_service.dart';
+import 'claude_service.dart' hide QuizQuestion;
 import '../../core/constants/api_keys.dart';
 
 class CurriculumService {
