@@ -54,7 +54,13 @@
           "vite": "6.3.5"
       },
       "scripts": {
-          "dev": "vite",
-          "build": "vite build"
+          "dev": "vite --port 5173",
+          "build": "vite build",
+          "start": "./start.sh",
+          "start:flutter": "./start.sh",
+          "start:all": "./start.sh --with-web --with-langfuse",
+          "start:web": "./start.sh --web-only",
+          "start:clean": "./start.sh --clean",
+          "stop": "docker compose -f docker-compose.langfuse.yml down; lsof -ti:3000 | xargs kill -9 2>/dev/null || true; lsof -ti:5173 | xargs kill -9 2>/dev/null || true"
       }
   }

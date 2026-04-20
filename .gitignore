@@ -1,4 +1,4 @@
-# Environment variables
+b# Environment variables
 .env
 .env.local
 .env.*.local
@@ -12,3 +12,9 @@ build/
 .vscode/
 *.swp
 *.swo
+node_modules
+node_modules
+node_modules
+node_modules
+node_modules
+node_modules

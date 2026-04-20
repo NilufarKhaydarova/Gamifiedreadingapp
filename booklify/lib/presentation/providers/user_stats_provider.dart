@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,6 +16,10 @@ class UserStats {
   final List<String> sessionDates; // all unique dates with sessions
   final List<String> earnedAchievementIds;
 
+  // ── Daily XP cap fields ──────────────────────────────────────────────────
+  final int xpEarnedToday; // resets each new calendar day
+  final String? lastXPDate; // "YYYY-MM-DD" of last XP grant
+
   const UserStats({
     this.xp = 0,
     this.level = 1,
@@ -25,6 +30,8 @@ class UserStats {
     this.lastSessionDate,
     this.sessionDates = const [],
     this.earnedAchievementIds = const [],
+    this.xpEarnedToday = 0,
+    this.lastXPDate,
   });
 
   int get xpToNextLevel => level * 100;
@@ -41,6 +48,8 @@ class UserStats {
     String? lastSessionDate,
     List<String>? sessionDates,
     List<String>? earnedAchievementIds,
+    int? xpEarnedToday,
+    String? lastXPDate,
   }) =>
       UserStats(
         xp: xp ?? this.xp,
@@ -52,7 +61,10 @@ class UserStats {
         totalBooksFinished: totalBooksFinished ?? this.totalBooksFinished,
         lastSessionDate: lastSessionDate ?? this.lastSessionDate,
         sessionDates: sessionDates ?? this.sessionDates,
-        earnedAchievementIds: earnedAchievementIds ?? this.earnedAchievementIds,
+        earnedAchievementIds:
+            earnedAchievementIds ?? this.earnedAchievementIds,
+        xpEarnedToday: xpEarnedToday ?? this.xpEarnedToday,
+        lastXPDate: lastXPDate ?? this.lastXPDate,
       );
 
   UserStats withXP(int added) {
@@ -71,6 +83,8 @@ class UserStats {
         'lastSessionDate': lastSessionDate,
         'sessionDates': sessionDates,
         'earnedAchievementIds': earnedAchievementIds,
+        'xpEarnedToday': xpEarnedToday,
+        'lastXPDate': lastXPDate,
       };
 
   factory UserStats.fromJson(Map<String, dynamic> j) => UserStats(
@@ -84,6 +98,8 @@ class UserStats {
         sessionDates: (j['sessionDates'] as List?)?.cast<String>() ?? [],
         earnedAchievementIds:
             (j['earnedAchievementIds'] as List?)?.cast<String>() ?? [],
+        xpEarnedToday: j['xpEarnedToday'] as int? ?? 0,
+        lastXPDate: j['lastXPDate'] as String?,
       );
 }
 
@@ -227,6 +243,9 @@ const kAllAchievements = [
 class UserStatsNotifier extends AsyncNotifier<UserStats> {
   static const _prefsKey = 'booklify_user_stats_v2';
 
+  /// Maximum XP that can be earned in a single calendar day.
+  static const int kDailyXPCap = 200;
+
   @override
   Future<UserStats> build() async {
     final prefs = await SharedPreferences.getInstance();
@@ -240,33 +259,49 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
   }
 
   /// Called when a reading session is completed.
+  /// XP is capped at [kDailyXPCap] per calendar day.
   /// Returns newly unlocked achievement ids so the UI can celebrate.
   Future<List<String>> completeSession({required int xpEarned}) async {
     final current = state.valueOrNull ?? const UserStats();
     final today = _today();
 
+    // ── Daily XP cap ─────────────────────────────────────────────────────
+    final int todayAccumulated;
+    if (current.lastXPDate == null || current.lastXPDate != today) {
+      // New day — reset the daily counter
+      todayAccumulated = 0;
+    } else {
+      todayAccumulated = current.xpEarnedToday;
+    }
+
+    final remaining = math.max(0, kDailyXPCap - todayAccumulated);
+    final cappedXP = math.min(xpEarned, remaining);
+
+    // ── Session dates & streak ────────────────────────────────────────────
     final dates = List<String>.from(current.sessionDates);
     if (!dates.contains(today)) dates.add(today);
 
-    // Streak logic
     int streak = current.streakDays;
     if (current.lastSessionDate == null) {
       streak = 1;
     } else if (current.lastSessionDate == today) {
-      // already counted today – don't change
+      // Already counted today — don't change streak
     } else if (current.lastSessionDate == _daysAgo(1)) {
       streak = current.streakDays + 1;
     } else {
-      streak = 1; // broken streak, start over
+      streak = 1; // Broken streak — start over
     }
 
+    // ── Apply capped XP ───────────────────────────────────────────────────
     final afterXP = current
-        .withXP(xpEarned)
+        .withXP(cappedXP)
         .copyWith(
           streakDays: streak,
           totalSessionsCompleted: current.totalSessionsCompleted + 1,
           lastSessionDate: today,
           sessionDates: dates,
+          xpEarnedToday: todayAccumulated + cappedXP,
+          lastXPDate: today,
         );
 
     final newIds = _checkAchievements(afterXP, current.earnedAchievementIds);
@@ -286,7 +321,6 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
     final current = state.valueOrNull ?? const UserStats();
     final updated =
         current.copyWith(totalBooksStarted: current.totalBooksStarted + 1);
-    // Check first_book / books_3 achievements
     final newIds = _checkAchievements(updated, current.earnedAchievementIds);
     final saved = updated.copyWith(
         earnedAchievementIds: [...current.earnedAchievementIds, ...newIds]);
@@ -296,9 +330,22 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
 
   Future<void> recordBookFinished() async {
     final current = state.valueOrNull ?? const UserStats();
+    // Book-finish XP is a bonus — also subject to daily cap
+    final today = _today();
+    final todayAccumulated = (current.lastXPDate == today)
+        ? current.xpEarnedToday
+        : 0;
+    final remaining = math.max(0, kDailyXPCap - todayAccumulated);
+    const bookFinishBonus = 200;
+    final cappedBonus = math.min(bookFinishBonus, remaining);
+
     final updated = current
-        .withXP(200)
-        .copyWith(totalBooksFinished: current.totalBooksFinished + 1);
+        .withXP(cappedBonus)
+        .copyWith(
+          totalBooksFinished: current.totalBooksFinished + 1,
+          xpEarnedToday: todayAccumulated + cappedBonus,
+          lastXPDate: today,
+        );
     final newIds = _checkAchievements(updated, current.earnedAchievementIds);
     final saved = updated.copyWith(
         earnedAchievementIds: [...current.earnedAchievementIds, ...newIds]);
@@ -339,6 +386,7 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
 
   static String _today() =>
       DateTime.now().toIso8601String().split('T')[0];
+
   static String _daysAgo(int n) =>
       DateTime.now()
           .subtract(Duration(days: n))

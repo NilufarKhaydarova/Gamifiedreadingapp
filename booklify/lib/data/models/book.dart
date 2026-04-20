@@ -114,6 +114,7 @@ class BookChunk {
   final bool completed;
   final DateTime? completedDate;
   final List<SubChunk> subChunks;
+  final Map<String, String> glossary; // term → definition
 
   BookChunk({
     required this.id,
@@ -128,6 +129,7 @@ class BookChunk {
     this.completed = false,
     this.completedDate,
     this.subChunks = const [],
+    this.glossary = const {},
   });
 
   BookChunk copyWith({
@@ -143,6 +145,7 @@ class BookChunk {
     bool? completed,
     DateTime? completedDate,
     List<SubChunk>? subChunks,
+    Map<String, String>? glossary,
   }) {
     return BookChunk(
       id: id ?? this.id,
@@ -157,6 +160,7 @@ class BookChunk {
       completed: completed ?? this.completed,
       completedDate: completedDate ?? this.completedDate,
       subChunks: subChunks ?? this.subChunks,
+      glossary: glossary ?? this.glossary,
     );
   }
 
@@ -174,10 +178,17 @@ class BookChunk {
       'completed': completed,
       'completedDate': completedDate?.toIso8601String(),
       'subChunks': subChunks.map((c) => c.toJson()).toList(),
+      'glossary': glossary,
     };
   }
 
   factory BookChunk.fromJson(Map<String, dynamic> json) {
+    // Parse glossary: stored as Map<String,dynamic>, cast values to String
+    final rawGlossary = json['glossary'] as Map<String, dynamic>?;
+    final glossary = rawGlossary != null
+        ? rawGlossary.map((k, v) => MapEntry(k, v.toString()))
+        : <String, String>{};
+
     return BookChunk(
       id: json['id'] as String,
       dayNumber: json['dayNumber'] as int,
@@ -199,6 +210,7 @@ class BookChunk {
               ?.map((c) => SubChunk.fromJson(c as Map<String, dynamic>))
               .toList() ??
           [],
+      glossary: glossary,
     );
   }
 }
