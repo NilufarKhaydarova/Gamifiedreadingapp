@@ -13,7 +13,7 @@ import '../models/achievement.dart';
 class DatabaseService {
   static Database? _database;
   static const String _dbName = 'booklify.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
   static const String _currentUserKey = 'current_user_id';
 
   Future<Database> get database async {
@@ -29,6 +29,7 @@ class DatabaseService {
       path,
       version: _dbVersion,
       onCreate: _createTables,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -132,7 +133,29 @@ class DatabaseService {
       )
     ''');
 
+    await _createCurriculaTable(db);
     await _seedAchievements(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createCurriculaTable(db);
+    }
+  }
+
+  Future<void> _createCurriculaTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS curricula (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        topic TEXT NOT NULL,
+        data_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        total_xp INTEGER DEFAULT 0,
+        streak INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    ''');
   }
 
   Future<void> _seedAchievements(Database db) async {
@@ -760,5 +783,80 @@ class DatabaseService {
         'SELECT COUNT(*) as total FROM reading_progress WHERE user_id = ? AND completed_date IS NOT NULL',
         [userId]);
     return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // ─── CURRICULUM ───────────────────────────────────────────────────────────
+
+  Future<void> saveCurriculum(Map<String, dynamic> curriculumJson,
+      {required String userId,
+      required String topic,
+      int totalXP = 0,
+      int streak = 0}) async {
+    final db = await database;
+    final id = curriculumJson['id'] as String? ?? const Uuid().v4();
+    await db.insert(
+      'curricula',
+      {
+        'id': id,
+        'user_id': userId,
+        'topic': topic,
+        'data_json': json.encode(curriculumJson),
+        'created_at':
+            curriculumJson['created_at'] as String? ??
+                DateTime.now().toIso8601String(),
+        'total_xp': totalXP,
+        'streak': streak,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getCurriculum(String userId) async {
+    final db = await database;
+    final results = await db.query(
+      'curricula',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'created_at DESC',
+      limit: 1,
+    );
+    if (results.isEmpty) return null;
+
+    final row = results.first;
+    final data = json.decode(row['data_json'] as String) as Map<String, dynamic>;
+    // Merge persisted XP/streak back in
+    data['total_xp'] = row['total_xp'] as int? ?? 0;
+    data['streak'] = row['streak'] as int? ?? 0;
+    return data;
+  }
+
+  Future<void> updateCurriculumProgress(
+      String curriculumId, Map<String, dynamic> updatedJson,
+      {int? totalXP, int? streak}) async {
+    final db = await database;
+    final updates = <String, dynamic>{
+      'data_json': json.encode(updatedJson),
+    };
+    if (totalXP != null) updates['total_xp'] = totalXP;
+    if (streak != null) updates['streak'] = streak;
+
+    await db.update(
+      'curricula',
+      updates,
+      where: 'id = ?',
+      whereArgs: [curriculumId],
+    );
+  }
+
+  Future<void> deleteCurriculum(String userId) async {
+    final db = await database;
+    await db.delete('curricula', where: 'user_id = ?', whereArgs: [userId]);
+  }
+
+  Future<bool> hasCurriculum(String userId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM curricula WHERE user_id = ?', [userId]);
+    return (Sqflite.firstIntValue(result) ?? 0) > 0;
   }
 }
