@@ -9,11 +9,12 @@ class SeedDataService {
   static final DatabaseService _db = DatabaseService();
 
   static Future<void> seedDatabase() async {
-    await _db.initialize();
+    // Trigger DB initialisation by accessing the database getter.
+    await _db.database;
 
-    // Only seed the demo account; skip if any users already exist.
-    final existingUsers = await _db.getLeaderboard();
-    if (existingUsers.isNotEmpty) {
+    // Only seed the demo account; skip if a demo user already exists.
+    final existing = await _db.getCurrentUser();
+    if (existing != null) {
       debugPrint('Database already initialised — skipping seed.');
       return;
     }

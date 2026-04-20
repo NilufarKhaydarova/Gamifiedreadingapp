@@ -840,6 +840,17 @@ and end with a follow-up question. Under 100 words. Respond in the user's langua
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  ChunkType _parseChunkType(dynamic val) {
+    switch ('$val'.toLowerCase()) {
+      case 'chapter':
+        return ChunkType.chapter;
+      case 'paragraph':
+        return ChunkType.paragraph;
+      default:
+        return ChunkType.section;
+    }
+  }
+
   Difficulty _parseDifficulty(dynamic val) {
     switch ('$val'.toLowerCase()) {
       case 'light':

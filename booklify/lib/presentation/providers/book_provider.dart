@@ -28,36 +28,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
   }
 
   Future<List<Book>> _loadBooks(String userId) async {
-    final rows = await _db.getBooks(userId);
-    return rows.map(_rowToBook).toList();
-  }
-
-  Book _rowToBook(Map<String, dynamic> row) {
-    List<BookChunk> chunks = [];
-    final chunksJson = row['chunks_json'] as String?;
-    if (chunksJson != null && chunksJson.isNotEmpty) {
-      try {
-        final list = json.decode(chunksJson) as List;
-        chunks = list
-            .map((c) => BookChunk.fromJson(c as Map<String, dynamic>))
-            .toList();
-      } catch (e) {
-        debugPrint('Failed to parse chunks: $e');
-        chunks = [];
-      }
-    }
-    return Book(
-      id: row['id'] as String,
-      title: row['title'] as String,
-      author: row['author'] as String,
-      totalPages: (row['total_days'] as int? ?? 7) * 30,
-      content: row['content'] as String? ?? '',
-      uploadDate:
-          DateTime.tryParse(row['created_at'] as String? ?? '') ??
-              DateTime.now(),
-      coverUrl: row['cover_url'] as String?,
-      chunks: chunks,
-    );
+    return _db.getBooks(userId);
   }
 
   // ── Active book ────────────────────────────────────────────────────────────
@@ -126,9 +97,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
       );
     }
 
-    final chunksJson =
-        json.encode(chunks.map((c) => c.toJson()).toList());
-    await _db.updateBookChunks(bookId, chunksJson);
+    await _db.updateBookChunks(bookId, chunks);
 
     final updatedBook = book.copyWith(chunks: chunks);
     state = AsyncData(
@@ -159,9 +128,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
       );
     }
 
-    final chunksJson =
-        json.encode(chunks.map((c) => c.toJson()).toList());
-    await _db.updateBookChunks(bookId, chunksJson);
+    await _db.updateBookChunks(bookId, chunks);
 
     final updatedBook = book.copyWith(chunks: chunks);
     state = AsyncData(
@@ -256,9 +223,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
       return c;
     }).toList();
 
-    final chunksJson =
-        json.encode(updatedChunks.map((c) => c.toJson()).toList());
-    await _db.updateBookChunks(bookId, chunksJson);
+    await _db.updateBookChunks(bookId, updatedChunks);
 
     final updatedBook = book.copyWith(chunks: updatedChunks);
     final updatedList = List<Book>.from(current);
@@ -280,16 +245,16 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
     String? coverUrl,
     String? content,
   }) async {
-    final id = _uuid.v4();
-    await _db.saveBook(
-      id: id,
-      userId: userId,
+    final book = Book(
+      id: _uuid.v4(),
       title: title,
       author: author,
+      totalPages: 210,
+      content: content ?? '',
+      uploadDate: DateTime.now(),
       coverUrl: coverUrl,
-      totalDays: 7,
-      content: content,
     );
+    await _db.saveBook(book, userId);
     final updated = await _loadBooks(userId);
     state = AsyncData(updated);
   }
