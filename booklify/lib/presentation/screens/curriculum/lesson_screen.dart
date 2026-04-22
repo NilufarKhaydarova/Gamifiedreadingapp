@@ -34,8 +34,26 @@ class _LessonScreenState extends ConsumerState<LessonScreen>
     );
     _progressAnimation =
         Tween<double>(begin: 0, end: 0).animate(_progressController);
-    // Find first incomplete step
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncStep());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncStep();
+      _loadContentIfNeeded(); // fetch quiz/chat content if missing
+    });
+  }
+
+  // Trigger AI content loading whenever any step in this lesson is unloaded.
+  Future<void> _loadContentIfNeeded() async {
+    final curr = ref.read(curriculumProvider).value;
+    if (curr == null) return;
+    if (widget.levelIndex >= curr.levels.length) return;
+    final level = curr.levels[widget.levelIndex];
+    if (widget.lessonIndex >= level.lessons.length) return;
+    final lesson = level.lessons[widget.lessonIndex];
+    if (lesson.steps.any((s) => !s.isLoaded)) {
+      await ref.read(curriculumProvider.notifier).loadLessonContent(
+            widget.levelIndex,
+            widget.lessonIndex,
+          );
+    }
   }
 
   @override
@@ -45,7 +63,7 @@ class _LessonScreenState extends ConsumerState<LessonScreen>
   }
 
   void _syncStep() {
-    final curr = ref.read(curriculumProvider).valueOrNull;
+    final curr = ref.read(curriculumProvider).value;
     if (curr == null) return;
     final lesson =
         curr.levels[widget.levelIndex].lessons[widget.lessonIndex];
@@ -58,13 +76,13 @@ class _LessonScreenState extends ConsumerState<LessonScreen>
   }
 
   Lesson? _lesson(WidgetRef ref) {
-    final curr = ref.watch(curriculumProvider).valueOrNull;
+    final curr = ref.watch(curriculumProvider).value;
     if (curr == null) return null;
     return curr.levels[widget.levelIndex].lessons[widget.lessonIndex];
   }
 
   CurriculumLevel? _level(WidgetRef ref) {
-    final curr = ref.watch(curriculumProvider).valueOrNull;
+    final curr = ref.watch(curriculumProvider).value;
     if (curr == null) return null;
     return curr.levels[widget.levelIndex];
   }
@@ -284,6 +302,8 @@ class _LessonScreenState extends ConsumerState<LessonScreen>
 }
 
 // ─── Read Step ────────────────────────────────────────────────────────────────
+// Clean reading experience — no redirects, no external buttons.
+// Content is the actual book passage split by the provider.
 
 class _ReadStep extends StatefulWidget {
   final LessonStep step;
@@ -301,94 +321,222 @@ class _ReadStep extends StatefulWidget {
 }
 
 class _ReadStepState extends State<_ReadStep> {
-  final _scrollController = ScrollController();
-  bool _hasScrolled = false;
+  late PageController _pageController;
+  int _currentPage = 0;
+  List<String> _pages = [''];
+  BoxConstraints? _lastConstraints;
+
+  static const _textStyle = TextStyle(
+    fontSize: 17,
+    height: 1.8,
+    color: AppColors.textPrimary,
+    fontFamily: 'Georgia',
+    letterSpacing: 0.1,
+  );
+
+  // Approx height of the READ + title header on page 0 (icon row + gap + title + gap)
+  static const double _firstPageHeaderHeight = 120.0;
+  // Padding top + bottom inside each page
+  static const double _verticalPadding = 40.0;
+  // Horizontal padding each side
+  static const double _horizontalPadding = 40.0;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
+    _pageController = PageController();
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
-  void _onScroll() {
-    if (!_hasScrolled) {
-      final maxScroll = _scrollController.position.maxScrollExtent;
-      final currentScroll = _scrollController.offset;
-      // Enable button after scrolling 60% of content
-      if (maxScroll > 0 && currentScroll >= maxScroll * 0.6) {
-        setState(() => _hasScrolled = true);
+  /// Re-paginate whenever the available area changes.
+  void _maybeRepaginate(BoxConstraints constraints) {
+    if (constraints == _lastConstraints) return;
+    _lastConstraints = constraints;
+
+    // Subtract padding on both sides and a small safety margin (8px)
+    final textWidth = constraints.maxWidth - _horizontalPadding;
+    final pageHeight = constraints.maxHeight - _verticalPadding - 8;
+
+    final newPages = _paginateForSize(
+      widget.step.content,
+      textWidth,
+      pageHeight,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _pages = newPages;
+        if (_currentPage >= _pages.length) _currentPage = 0;
+      });
+    });
+  }
+
+  /// Paginate `text` so each page fits within `maxHeight` pixels at `maxWidth`.
+  List<String> _paginateForSize(
+      String text, double maxWidth, double maxHeight) {
+    if (text.trim().isEmpty) return ['No content available for this section.'];
+
+    // Split into atomic chunks: first by paragraph, then split any paragraph
+    // that is longer than one page by sentence.
+    final rawParas = text
+        .split(RegExp(r'\n\n+'))
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (rawParas.isEmpty) return [text];
+
+    // Break a paragraph into sentence-sized pieces when it alone overflows.
+    List<String> chunks = [];
+    for (final para in rawParas) {
+      final alone = TextPainter(
+        text: TextSpan(text: para, style: _textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: maxWidth);
+      if (alone.height <= maxHeight) {
+        chunks.add(para);
+      } else {
+        // Split by sentence boundary and re-group
+        final sentences =
+            para.split(RegExp(r'(?<=[.!?])\s+'));
+        final sentBuf = StringBuffer();
+        for (final s in sentences) {
+          final candidate =
+              sentBuf.isEmpty ? s : '${sentBuf.toString()} $s';
+          final p = TextPainter(
+            text: TextSpan(text: candidate, style: _textStyle),
+            textDirection: TextDirection.ltr,
+          )..layout(maxWidth: maxWidth);
+          if (p.height > maxHeight && sentBuf.isNotEmpty) {
+            chunks.add(sentBuf.toString().trim());
+            sentBuf.clear();
+            sentBuf.write(s);
+          } else {
+            if (sentBuf.isNotEmpty) sentBuf.write(' ');
+            sentBuf.write(s);
+          }
+        }
+        if (sentBuf.isNotEmpty) chunks.add(sentBuf.toString().trim());
       }
     }
+
+    final pages = <String>[];
+    final buf = StringBuffer();
+    bool isFirstPage = true;
+
+    for (final chunk in chunks) {
+      final candidate =
+          buf.isEmpty ? chunk : '${buf.toString()}\n\n$chunk';
+
+      // First page reserves space for the READ + title header
+      final availableH =
+          maxHeight - (isFirstPage ? _firstPageHeaderHeight : 0.0);
+
+      final painter = TextPainter(
+        text: TextSpan(text: candidate, style: _textStyle),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: maxWidth);
+
+      if (painter.height > availableH && buf.isNotEmpty) {
+        pages.add(buf.toString().trim());
+        buf.clear();
+        isFirstPage = false;
+        buf.write(chunk);
+      } else {
+        if (buf.isNotEmpty) buf.write('\n\n');
+        buf.write(chunk);
+      }
+    }
+    if (buf.isNotEmpty) pages.add(buf.toString().trim());
+    return pages.isEmpty ? [text] : pages;
   }
+
+  bool get _onLastPage => _currentPage >= _pages.length - 1;
 
   @override
   Widget build(BuildContext context) {
+    final totalPages = _pages.length;
+
     return Column(
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Step label
-                Row(
-                  children: [
-                    Icon(widget.step.icon,
-                        color: widget.color, size: 18),
-                    const SizedBox(width: 6),
-                    Text(
-                      widget.step.typeLabel.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: widget.color,
-                        letterSpacing: 1,
+          // LayoutBuilder lives inside Expanded so constraints.maxHeight
+          // is exactly the reading area height, not the full screen.
+          child: LayoutBuilder(builder: (context, constraints) {
+            _maybeRepaginate(constraints);
+            return PageView.builder(
+              controller: _pageController,
+              onPageChanged: (p) => setState(() => _currentPage = p),
+              itemCount: totalPages,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // READ label + title on first page only
+                      if (index == 0) ...[
+                        Row(
+                          children: [
+                            Icon(widget.step.icon,
+                                color: widget.color, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              'READ',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: widget.color,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          widget.step.title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(height: 1.25),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                      Text(
+                        _pages[index],
+                        style: _textStyle,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  widget.step.title,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.readingSurface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.border),
+                    ],
                   ),
-                  child: Text(
-                    widget.step.content,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      height: 1.75,
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-              ],
+                );
+              },
+            );
+          }),
+        ),
+        // Bottom bar: page nav on mid-pages, Continue on last page
+        if (_onLastPage)
+          _BottomContinueBar(
+            color: widget.color,
+            enabled: true,
+            label: 'Continue',
+            onPressed: widget.onComplete,
+          )
+        else
+          _PageNavBar(
+            current: _currentPage,
+            total: totalPages,
+            color: widget.color,
+            onNext: () => _pageController.nextPage(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
             ),
           ),
-        ),
-        _BottomContinueBar(
-          color: widget.color,
-          enabled: _hasScrolled || widget.step.content.length < 300,
-          label: 'Continue',
-          onPressed: widget.onComplete,
-        ),
       ],
     );
   }
@@ -417,8 +565,8 @@ class _QuizStepState extends State<_QuizStep> {
   bool _answered = false;
   int _correctCount = 0;
 
-  QuizQuestion get _question =>
-      widget.step.questions[_currentQuestion];
+  bool get _hasQuestions => widget.step.questions.isNotEmpty;
+  QuizQuestion get _question => widget.step.questions[_currentQuestion];
   bool get _isLastQuestion =>
       _currentQuestion == widget.step.questions.length - 1;
 
@@ -446,6 +594,45 @@ class _QuizStepState extends State<_QuizStep> {
 
   @override
   Widget build(BuildContext context) {
+    // Questions haven't loaded yet — show a spinner while AI generates them
+    if (!_hasQuestions) {
+      return Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: widget.color, strokeWidth: 2),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Generating quiz questions…',
+                      style: TextStyle(color: widget.color, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'The AI is crafting questions based on this chapter.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Allow skipping if AI is unavailable
+          _BottomContinueBar(
+            color: widget.color,
+            enabled: true,
+            label: 'Skip for Now',
+            onPressed: widget.onComplete,
+          ),
+        ],
+      );
+    }
+
     final q = _question;
     final questionCount = widget.step.questions.length;
 
@@ -956,6 +1143,74 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
 }
 
 // ─── Shared Widgets ───────────────────────────────────────────────────────────
+
+/// Shown between pages of a read step — page counter + Next arrow button.
+class _PageNavBar extends StatelessWidget {
+  final int current;
+  final int total;
+  final Color color;
+  final VoidCallback onNext;
+
+  const _PageNavBar({
+    required this.current,
+    required this.total,
+    required this.color,
+    required this.onNext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      color: AppColors.surface,
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Page counter text
+            Text(
+              '${current + 1} / $total',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: color.withValues(alpha: 0.6),
+              ),
+            ),
+            const Spacer(),
+            // Next page button
+            GestureDetector(
+              onTap: onNext,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 14),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Next',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.arrow_forward_rounded,
+                        color: Colors.white, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _BottomContinueBar extends StatelessWidget {
   final Color color;

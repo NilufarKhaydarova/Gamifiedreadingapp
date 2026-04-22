@@ -39,6 +39,32 @@ class OpenAIService {
     }
   }
 
+  /// Chat completion — used as last-resort fallback after Claude and Gemini.
+  Future<String> chat({
+    required String systemPrompt,
+    required List<Map<String, String>> messages,
+    int maxTokens = 600,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/chat/completions',
+        data: {
+          'model': 'gpt-4o-mini',
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            ...messages,
+          ],
+          'max_tokens': maxTokens,
+          'temperature': 0.7,
+        },
+      );
+      return response.data['choices'][0]['message']['content'] as String;
+    } on DioException catch (e) {
+      debugPrint('❌ OpenAI chat error: ${e.response?.data ?? e.message}');
+      throw Exception('OpenAI chat failed: $e');
+    }
+  }
+
   /// Batch-embed multiple texts in one API call.
   Future<List<List<double>>> generateEmbeddings(List<String> texts) async {
     try {

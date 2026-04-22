@@ -13,7 +13,7 @@ import '../models/achievement.dart';
 class DatabaseService {
   static Database? _database;
   static const String _dbName = 'booklify.db';
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
   static const String _currentUserKey = 'current_user_id';
 
   Future<Database> get database async {
@@ -134,6 +134,7 @@ class DatabaseService {
     ''');
 
     await _createCurriculaTable(db);
+    await _createAdaptiveTables(db);
     await _seedAchievements(db);
   }
 
@@ -141,6 +142,63 @@ class DatabaseService {
     if (oldVersion < 2) {
       await _createCurriculaTable(db);
     }
+    if (oldVersion < 3) {
+      await _createAdaptiveTables(db);
+    }
+  }
+
+  Future<void> _createAdaptiveTables(Database db) async {
+    // Highlights: text the user selects while reading
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS highlights (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        book_id TEXT NOT NULL,
+        chunk_id TEXT NOT NULL,
+        text TEXT NOT NULL,
+        position_pct REAL DEFAULT 0,
+        color TEXT DEFAULT 'yellow',
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    // AI interactions: questions + responses + extracted topic tags
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ai_interactions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        book_id TEXT NOT NULL,
+        chunk_id TEXT NOT NULL,
+        question TEXT NOT NULL,
+        response TEXT NOT NULL,
+        topic_tags TEXT DEFAULT '[]',
+        provider TEXT DEFAULT 'claude',
+        created_at TEXT NOT NULL
+      )
+    ''');
+
+    // Reading analytics: pace per reading session
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS reading_analytics (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        book_id TEXT NOT NULL,
+        chunk_id TEXT NOT NULL,
+        wpm INTEGER DEFAULT 0,
+        time_seconds INTEGER DEFAULT 0,
+        scroll_completion REAL DEFAULT 0,
+        session_date TEXT NOT NULL
+      )
+    ''');
+
+    // Adaptive reader profile: evolves with every session
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS user_reading_profile (
+        user_id TEXT PRIMARY KEY,
+        profile_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _createCurriculaTable(Database db) async {
@@ -240,7 +298,7 @@ class DatabaseService {
   }
 
   // Simple password hashing for local app
-  String _hashPassword(String password) {
+  String hashPassword(String password) {
     final bytes = utf8.encode(password + 'booklify_salt_2024');
     int hash = 5381;
     for (final b in bytes) {
@@ -249,6 +307,8 @@ class DatabaseService {
     }
     return hash.toRadixString(16);
   }
+
+  String _hashPassword(String password) => hashPassword(password);
 
   // ─── AUTH ────────────────────────────────────────────────────────────────
 
@@ -785,6 +845,57 @@ class DatabaseService {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
+  Future<Map<String, dynamic>> getInsightsData(String userId) async {
+    final db = await database;
+
+    final books = await getBooks(userId);
+    final totalMinutes = await getTotalReadingMinutes(userId);
+    final booksCompleted = await getTotalBooksRead(userId);
+    final streak = await getUserStreak(userId);
+
+    final sessions = await db.query(
+      'reading_sessions',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'created_at DESC',
+      limit: 90,
+    );
+
+    final bookSummaries = <Map<String, dynamic>>[];
+    final allKeyIdeas = <String>[];
+
+    for (final book in books) {
+      final total = book.chunks.length;
+      final done = book.chunks.where((c) => c.completed).length;
+      final pct = total > 0 ? (done / total * 100).round() : 0;
+      for (final c in book.chunks.where((c) => c.completed)) {
+        if (c.keyIdea.isNotEmpty) allKeyIdeas.add(c.keyIdea);
+      }
+      bookSummaries.add({
+        'title': book.title,
+        'author': book.author,
+        'completionPct': pct,
+        'chunksRead': done,
+        'totalChunks': total,
+      });
+    }
+
+    final sessionsByDate = <String, int>{};
+    for (final s in sessions) {
+      final date = (s['created_at'] as String).split('T').first;
+      sessionsByDate[date] = (sessionsByDate[date] ?? 0) + (s['minutes_read'] as int? ?? 0);
+    }
+
+    return {
+      'books': bookSummaries,
+      'keyIdeas': allKeyIdeas,
+      'totalMinutes': totalMinutes,
+      'booksCompleted': booksCompleted,
+      'streak': streak,
+      'sessionsByDate': sessionsByDate,
+    };
+  }
+
   // ─── CURRICULUM ───────────────────────────────────────────────────────────
 
   Future<void> saveCurriculum(Map<String, dynamic> curriculumJson,
@@ -859,4 +970,161 @@ class DatabaseService {
         'SELECT COUNT(*) as count FROM curricula WHERE user_id = ?', [userId]);
     return (Sqflite.firstIntValue(result) ?? 0) > 0;
   }
+
+  // ─── HIGHLIGHTS ───────────────────────────────────────────────────────────
+
+  Future<void> saveHighlight({
+    required String userId,
+    required String bookId,
+    required String chunkId,
+    required String text,
+    required double positionPct,
+    String color = 'yellow',
+  }) async {
+    final db = await database;
+    await db.insert('highlights', {
+      'id': const Uuid().v4(),
+      'user_id': userId,
+      'book_id': bookId,
+      'chunk_id': chunkId,
+      'text': text,
+      'position_pct': positionPct,
+      'color': color,
+      'created_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, dynamic>>> getHighlights(String userId, String bookId) async {
+    final db = await database;
+    return db.query('highlights',
+        where: 'user_id = ? AND book_id = ?',
+        whereArgs: [userId, bookId],
+        orderBy: 'created_at DESC',
+        limit: 50);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllHighlights(String userId) async {
+    final db = await database;
+    return db.query('highlights',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        orderBy: 'created_at DESC',
+        limit: 100);
+  }
+
+  // ─── AI INTERACTIONS ──────────────────────────────────────────────────────
+
+  Future<void> saveAiInteraction({
+    required String userId,
+    required String bookId,
+    required String chunkId,
+    required String question,
+    required String response,
+    List<String> topicTags = const [],
+    String provider = 'claude',
+  }) async {
+    final db = await database;
+    await db.insert('ai_interactions', {
+      'id': const Uuid().v4(),
+      'user_id': userId,
+      'book_id': bookId,
+      'chunk_id': chunkId,
+      'question': question,
+      'response': response,
+      'topic_tags': json.encode(topicTags),
+      'provider': provider,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getAiInteractions(String userId, String bookId) async {
+    final db = await database;
+    return db.query('ai_interactions',
+        where: 'user_id = ? AND book_id = ?',
+        whereArgs: [userId, bookId],
+        orderBy: 'created_at DESC',
+        limit: 30);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllAiInteractions(String userId) async {
+    final db = await database;
+    return db.query('ai_interactions',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        orderBy: 'created_at DESC',
+        limit: 100);
+  }
+
+  // ─── READING ANALYTICS ────────────────────────────────────────────────────
+
+  Future<void> saveReadingAnalytics({
+    required String userId,
+    required String bookId,
+    required String chunkId,
+    required int wpm,
+    required int timeSeconds,
+    required double scrollCompletion,
+  }) async {
+    final db = await database;
+    await db.insert('reading_analytics', {
+      'id': const Uuid().v4(),
+      'user_id': userId,
+      'book_id': bookId,
+      'chunk_id': chunkId,
+      'wpm': wpm,
+      'time_seconds': timeSeconds,
+      'scroll_completion': scrollCompletion,
+      'session_date': DateTime.now().toIso8601String().split('T').first,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getReadingAnalytics(String userId) async {
+    final db = await database;
+    return db.query('reading_analytics',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        orderBy: 'session_date DESC',
+        limit: 60);
+  }
+
+  // ─── USER READING PROFILE ─────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getUserReadingProfile(String userId) async {
+    final db = await database;
+    final rows = await db.query('user_reading_profile',
+        where: 'user_id = ?', whereArgs: [userId]);
+    if (rows.isEmpty) return _defaultProfile();
+    try {
+      return json.decode(rows.first['profile_json'] as String)
+          as Map<String, dynamic>;
+    } catch (_) {
+      return _defaultProfile();
+    }
+  }
+
+  Future<void> updateUserReadingProfile(
+      String userId, Map<String, dynamic> profile) async {
+    final db = await database;
+    await db.insert(
+      'user_reading_profile',
+      {
+        'user_id': userId,
+        'profile_json': json.encode(profile),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Map<String, dynamic> _defaultProfile() => {
+        'avgWpm': 0,
+        'totalHighlights': 0,
+        'totalAiQuestions': 0,
+        'highlightThemes': <String>[],
+        'frequentAiTopics': <String>[],
+        'slowTopics': <String>[],
+        'booksEngaged': <String>[],
+        'preferredDepth': 'unknown',
+        'lastUpdated': DateTime.now().toIso8601String().split('T').first,
+      };
 }

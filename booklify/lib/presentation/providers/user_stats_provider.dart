@@ -262,7 +262,7 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
   /// XP is capped at [kDailyXPCap] per calendar day.
   /// Returns newly unlocked achievement ids so the UI can celebrate.
   Future<List<String>> completeSession({required int xpEarned}) async {
-    final current = state.valueOrNull ?? const UserStats();
+    final current = state.value ?? const UserStats();
     final today = _today();
 
     // ── Daily XP cap ─────────────────────────────────────────────────────
@@ -318,7 +318,7 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
   }
 
   Future<void> recordBookStarted() async {
-    final current = state.valueOrNull ?? const UserStats();
+    final current = state.value ?? const UserStats();
     final updated =
         current.copyWith(totalBooksStarted: current.totalBooksStarted + 1);
     final newIds = _checkAchievements(updated, current.earnedAchievementIds);
@@ -329,7 +329,7 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
   }
 
   Future<void> recordBookFinished() async {
-    final current = state.valueOrNull ?? const UserStats();
+    final current = state.value ?? const UserStats();
     // Book-finish XP is a bonus — also subject to daily cap
     final today = _today();
     final todayAccumulated = (current.lastXPDate == today)

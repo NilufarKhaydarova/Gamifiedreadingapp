@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app.dart' show AppLocalizationsX;
 import '../../../core/theme/app_colors.dart';
 import '../../providers/curriculum_provider.dart';
+import '../library/add_book_sheet.dart';
 
 class TopicInputScreen extends ConsumerStatefulWidget {
   const TopicInputScreen({super.key});
@@ -49,9 +51,10 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
   }
 
   Future<void> _generate() async {
+    final l = context.l10n;
     final topic = _controller.text.trim();
     if (topic.isEmpty) {
-      setState(() => _errorText = 'Tell us what you want to learn!');
+      setState(() => _errorText = l.topicEmpty);
       return;
     }
 
@@ -63,9 +66,6 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     try {
       await ref.read(curriculumProvider.notifier).generate(topic);
       if (mounted) {
-        // If pushed on top of another route (e.g. from ProfileScreen), pop back.
-        // If rendered inline inside CurriculumMapScreen the parent will rebuild
-        // automatically because the provider now has data.
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
         }
@@ -74,7 +74,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
       if (mounted) {
         setState(() {
           _isGenerating = false;
-          _errorText = 'Something went wrong. Please try again.';
+          _errorText = context.l10n.commonError;
         });
       }
     }
@@ -93,6 +93,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
   }
 
   Widget _buildLoadingState() {
+    final l = context.l10n;
     final topic = _controller.text.trim();
     return Center(
       child: Padding(
@@ -116,13 +117,13 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
             ),
             const SizedBox(height: 32),
             Text(
-              'Building your curriculum...',
+              l.topicBuilding,
               style: Theme.of(context).textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             Text(
-              'Curating the best books on\n"$topic"',
+              l.topicCurating(topic),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -136,7 +137,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              'This may take a moment ✨',
+              l.topicMoment,
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -146,6 +147,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
   }
 
   Widget _buildInputState() {
+    final l = context.l10n;
     return CustomScrollView(
       slivers: [
         SliverFillRemaining(
@@ -156,9 +158,9 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 48),
-                _buildHeader(),
+                _buildHeader(l),
                 const SizedBox(height: 40),
-                _buildTextField(),
+                _buildTextField(l),
                 if (_errorText != null) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -168,9 +170,13 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
                   ),
                 ],
                 const SizedBox(height: 32),
-                _buildSuggestions(),
+                _buildSuggestions(l),
                 const Spacer(),
-                _buildGenerateButton(),
+                _buildGenerateButton(l),
+                const SizedBox(height: 16),
+                _buildOrDivider(l),
+                const SizedBox(height: 16),
+                _buildUploadBookButton(l),
                 const SizedBox(height: 32),
               ],
             ),
@@ -180,7 +186,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(appLocalizations) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -197,14 +203,14 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
         ),
         const SizedBox(height: 20),
         Text(
-          'What do you\nwant to learn?',
+          appLocalizations.topicTitle,
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                 height: 1.15,
               ),
         ),
         const SizedBox(height: 12),
         Text(
-          'We\'ll create a personalized reading path with the best books, quizzes, and AI discussions.',
+          appLocalizations.topicSubtitle,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -213,7 +219,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildTextField() {
+  Widget _buildTextField(appLocalizations) {
     return TextField(
       controller: _controller,
       autofocus: true,
@@ -225,7 +231,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
         color: AppColors.textPrimary,
       ),
       decoration: InputDecoration(
-        hintText: 'e.g. Philosophy, AI Engineering…',
+        hintText: appLocalizations.topicHint,
         hintStyle: const TextStyle(
           fontSize: 16,
           color: AppColors.textHint,
@@ -255,12 +261,12 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildSuggestions() {
+  Widget _buildSuggestions(appLocalizations) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Popular topics',
+          appLocalizations.topicPopular,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -287,7 +293,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildGenerateButton() {
+  Widget _buildGenerateButton(appLocalizations) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -303,13 +309,59 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
             const Icon(Icons.auto_awesome_rounded, size: 20),
             const SizedBox(width: 8),
             Text(
-              'Build My Curriculum',
+              appLocalizations.topicBuild,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                   ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrDivider(appLocalizations) {
+    return Row(
+      children: [
+        const Expanded(child: Divider()),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            appLocalizations.commonOr,
+            style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+          ),
+        ),
+        const Expanded(child: Divider()),
+      ],
+    );
+  }
+
+  Widget _buildUploadBookButton(appLocalizations) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom),
+              child: const AddBookSheet(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.upload_file_rounded),
+        label: Text(appLocalizations.topicUpload),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
         ),
       ),
     );

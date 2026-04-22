@@ -37,7 +37,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
   /// Heuristic: the book whose last completed chunk has the most recent
   /// completedDate, or if no chunks are completed, the first book in the list.
   Book? getActiveBook() {
-    final books = state.valueOrNull ?? [];
+    final books = state.value ?? [];
     if (books.isEmpty) return null;
 
     Book? bestBook;
@@ -74,7 +74,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
       required String goal,
       required int days,
       required int minutesPerDay}) async {
-    final current = state.valueOrNull ?? [];
+    final current = state.value ?? [];
     final book = current.firstWhere((b) => b.id == bookId);
 
     List<BookChunk> chunks;
@@ -111,7 +111,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
   /// Returns the book ready to read.
   /// If no content is available, Claude generates an educational 7-day guide.
   Future<Book> prepareForReading(String bookId) async {
-    final current = state.valueOrNull ?? [];
+    final current = state.value ?? [];
     final book = current.firstWhere((b) => b.id == bookId);
     if (book.chunks.isNotEmpty) return book;
 
@@ -210,7 +210,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
 
   /// Mark a specific chunk as completed and persist to DB.
   Future<void> markChunkComplete(String bookId, String chunkId) async {
-    final current = state.valueOrNull ?? [];
+    final current = state.value ?? [];
     final bookIndex = current.indexWhere((b) => b.id == bookId);
     if (bookIndex == -1) return;
 
@@ -261,7 +261,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
 
   Future<void> removeBook(String bookId) async {
     await _db.deleteBook(bookId);
-    final current = state.valueOrNull ?? [];
+    final current = state.value ?? [];
     state = AsyncData(current.where((b) => b.id != bookId).toList());
   }
 
@@ -295,4 +295,4 @@ final booksProvider =
     AsyncNotifierProvider<BooksNotifier, List<Book>>(() => BooksNotifier());
 
 final userBooksProvider = Provider<List<Book>>(
-    (ref) => ref.watch(booksProvider).valueOrNull ?? []);
+    (ref) => ref.watch(booksProvider).value ?? []);

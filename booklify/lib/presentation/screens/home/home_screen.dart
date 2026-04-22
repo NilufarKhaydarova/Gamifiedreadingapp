@@ -5,8 +5,8 @@ import '../../providers/book_provider.dart';
 import '../../providers/user_stats_provider.dart';
 import '../library/library_screen.dart';
 import '../learning/learning_map_screen.dart';
-import '../gamification/achievements_screen.dart';
 import '../reading/reading_session_screen.dart';
+import '../insights/insights_screen.dart';
 import '../../../data/models/book.dart';
 
 // ─── Brand colours ────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _DashboardTab(),
           LibraryScreen(),
           LearningMapScreen(),
-          AchievementsScreen(),
+          InsightsScreen(),
         ],
       ),
       bottomNavigationBar: _BottomNav(
@@ -96,8 +96,8 @@ class _BottomNav extends StatelessWidget {
                   currentIndex: currentIndex,
                   onTap: onTap),
               _NavItem(
-                  icon: Icons.emoji_events_rounded,
-                  label: 'Profile',
+                  icon: Icons.insights_rounded,
+                  label: 'Insights',
                   index: 3,
                   currentIndex: currentIndex,
                   onTap: onTap),
@@ -231,7 +231,7 @@ class _DashboardTabState extends ConsumerState<_DashboardTab> {
     final user = ref.watch(authProvider).user;
     final books = ref.watch(userBooksProvider);
     final statsAsync = ref.watch(userStatsProvider);
-    final stats = statsAsync.valueOrNull;
+    final stats = statsAsync.value;
     final firstName = (user?.displayName ?? 'Reader').split(' ').first;
     final active = ref.watch(booksProvider.notifier).getActiveBook();
     final hasBooks = books.isNotEmpty;

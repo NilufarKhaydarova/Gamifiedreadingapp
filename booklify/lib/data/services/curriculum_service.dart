@@ -36,6 +36,96 @@ class CurriculumService {
 
   // ─── Generate lesson content (on-demand when opening a lesson) ────────────
 
+  // Generates quiz questions from the actual passage text of each read step.
+  // Used for book-driven lessons (where read steps already contain the text).
+  Future<Lesson> generateQuizzesFromPassages(
+    Lesson lesson,
+    String bookTitle,
+  ) async {
+    final steps = List<LessonStep>.from(lesson.steps);
+
+    for (int i = 0; i < steps.length; i++) {
+      if (steps[i].type != LessonStepType.quiz || steps[i].isLoaded) continue;
+
+      // Find the immediately preceding read step's content
+      String passage = '';
+      for (int j = i - 1; j >= 0; j--) {
+        if (steps[j].type == LessonStepType.read && steps[j].content.isNotEmpty) {
+          passage = steps[j].content;
+          break;
+        }
+      }
+
+      if (passage.isEmpty) {
+        // No passage found → mark loaded with a generic fallback question
+        steps[i] = _fallbackQuizStep(steps[i], lesson.title);
+        continue;
+      }
+
+      if (ApiKeys.hasClaudeKey) {
+        try {
+          final json = await _claude.generateQuizForPassage(
+            passage: passage,
+            bookTitle: bookTitle,
+            sectionTitle: lesson.title,
+          );
+          final question = json['question'] as String? ?? 'What did you just read about?';
+          final options = (json['options'] as List?)
+                  ?.map((o) => o.toString())
+                  .toList() ??
+              ['It was described', 'It was not mentioned', 'It was implied', 'None of the above'];
+          final correctIdx = (json['correctIndex'] as num?)?.toInt() ?? 0;
+          final explanation = json['explanation'] as String? ?? '';
+
+          steps[i] = LessonStep(
+            id: steps[i].id,
+            title: steps[i].title,
+            type: LessonStepType.quiz,
+            questions: [
+              QuizQuestion(
+                question: question,
+                options: options,
+                correctIndex: correctIdx.clamp(0, options.length - 1),
+                explanation: explanation,
+              ),
+            ],
+            isLoaded: true,
+          );
+          continue;
+        } catch (e) {
+          debugPrint('Quiz generation failed for step ${steps[i].id}: $e');
+        }
+      }
+
+      // Fallback when no AI key
+      steps[i] = _fallbackQuizStep(steps[i], lesson.title);
+    }
+
+    return lesson.copyWith(steps: steps);
+  }
+
+  LessonStep _fallbackQuizStep(LessonStep step, String lessonTitle) {
+    return LessonStep(
+      id: step.id,
+      title: step.title,
+      type: LessonStepType.quiz,
+      questions: [
+        QuizQuestion(
+          question: 'Which best describes the passage you just read?',
+          options: [
+            'A) It introduced new characters or events',
+            'B) It described a conflict or tension',
+            'C) It reflected on past events',
+            'D) It built toward a climax or resolution',
+          ],
+          correctIndex: 0,
+          explanation: 'Reading carefully reveals the structure of the narrative.',
+        ),
+      ],
+      isLoaded: true,
+    );
+  }
+
   Future<Lesson> generateLessonContent(
     Lesson lesson,
     CurriculumLevel level,

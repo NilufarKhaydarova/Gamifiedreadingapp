@@ -1,25 +1,38 @@
 {
   "name": "speech_to_text",
-  "version": "0.0.1",
-  "summary": "A new flutter plugin project.",
-  "description": "A new flutter plugin project.",
-  "homepage": "http://example.com",
+  "version": "7.2.0",
+  "summary": "Exposes iOS and macOS speech recognition capabilities to Flutter.",
+  "description": "A Flutter plugin module for iOS and macOS that uses native speech recognition.",
+  "homepage": "https://github.com/csdcorp/speech_to_text",
   "license": {
     "file": "../LICENSE"
   },
   "authors": {
-    "Your Company": "email@example.com"
+    "Corner Software Development": "info@csdcorp.com"
   },
   "source": {
     "path": "."
   },
-  "source_files": "Classes/**/*",
-  "public_header_files": "Classes/**/*.h",
-  "dependencies": {
-    "Flutter": [],
-    "Try": []
+  "source_files": "speech_to_text/Sources/speech_to_text/**/*.swift",
+  "ios": {
+    "dependencies": {
+      "Flutter": [],
+      "CwlCatchException": []
+    }
+  },
+  "osx": {
+    "dependencies": {
+      "FlutterMacOS": [],
+      "CwlCatchException": []
+    }
   },
   "platforms": {
-    "ios": "8.0"
-  }
+    "ios": "13.0",
+    "osx": "11.00"
+  },
+  "pod_target_xcconfig": {
+    "DEFINES_MODULE": "YES"
+  },
+  "swift_versions": "5.0",
+  "swift_version": "5.0"
 }

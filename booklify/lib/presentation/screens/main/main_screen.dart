@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app.dart' show AppLocalizationsX;
 import '../curriculum/curriculum_map_screen.dart';
+import '../library/books_screen.dart';
+import '../insights/insights_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../providers/curriculum_provider.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -12,28 +16,44 @@ class MainScreen extends ConsumerStatefulWidget {
 class _MainScreenState extends ConsumerState<MainScreen> {
   int _selectedIndex = 0;
 
-  static const _screens = <Widget>[
-    CurriculumMapScreen(),
-    ProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final curriculum = ref.watch(curriculumProvider).value;
+    final topic = curriculum?.topic;
+    final l = context.l10n;
+
+    final screens = <Widget>[
+      const CurriculumMapScreen(),
+      BooksScreen(recommendedTopic: topic),
+      const InsightsScreen(),
+      const ProfileScreen(),
+    ];
+
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _screens),
+      body: IndexedStack(index: _selectedIndex, children: screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map_rounded),
-            label: 'Learn',
+            icon: const Icon(Icons.map_outlined),
+            selectedIcon: const Icon(Icons.map_rounded),
+            label: l.navLearn,
           ),
           NavigationDestination(
-            icon: Icon(Icons.forest_outlined),
-            selectedIcon: Icon(Icons.forest_rounded),
-            label: 'Profile',
+            icon: const Icon(Icons.menu_book_outlined),
+            selectedIcon: const Icon(Icons.menu_book_rounded),
+            label: l.navBooks,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.hub_outlined),
+            selectedIcon: const Icon(Icons.hub_rounded),
+            label: l.navInsights,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outlined),
+            selectedIcon: const Icon(Icons.person_rounded),
+            label: l.navProfile,
           ),
         ],
       ),

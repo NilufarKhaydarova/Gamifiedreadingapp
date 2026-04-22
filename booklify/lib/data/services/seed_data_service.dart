@@ -1,6 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
 import 'database_service.dart';
 
 /// Seeds only the demo account.
@@ -9,43 +7,41 @@ class SeedDataService {
   static final DatabaseService _db = DatabaseService();
 
   static Future<void> seedDatabase() async {
-    // Trigger DB initialisation by accessing the database getter.
     await _db.database;
-
-    // Only seed the demo account; skip if a demo user already exists.
-    final existing = await _db.getCurrentUser();
-    if (existing != null) {
-      debugPrint('Database already initialised — skipping seed.');
-      return;
-    }
-
     debugPrint('Seeding demo account…');
-    await _createDemoUser();
+    await _upsertDemoUser();
     debugPrint('Seed complete.');
   }
 
-  static Future<void> _createDemoUser() async {
+  static Future<void> _upsertDemoUser() async {
     final db = await _db.database;
-
     final now = DateTime.now().toIso8601String();
-    await db.insert('users', {
-      'id': 'user-demo',
-      'email': 'demo@booklify.com',
-      'password_hash': _hashPassword('demo123'),
-      'display_name': 'Demo User',
-      'xp': 0,
-      'level': 1,
-      'created_at': now,
-      'updated_at': now,
-    });
+    final correctHash = _db.hashPassword('demo123');
 
-    debugPrint('Demo account created: demo@booklify.com / demo123');
-  }
+    final existing = await db.query(
+      'users',
+      where: 'id = ?',
+      whereArgs: ['user-demo'],
+    );
 
-  static String _hashPassword(String password) {
-    final bytes = utf8.encode(password);
-    final hash = sha256.convert(bytes);
-    return hash.toString();
+    if (existing.isEmpty) {
+      await db.insert('users', {
+        'id': 'user-demo',
+        'email': 'demo@booklify.com',
+        'password_hash': correctHash,
+        'display_name': 'Demo User',
+        'created_at': now,
+      });
+      debugPrint('Demo account created: demo@booklify.com / demo123');
+    } else if (existing.first['password_hash'] != correctHash) {
+      await db.update(
+        'users',
+        {'password_hash': correctHash},
+        where: 'id = ?',
+        whereArgs: ['user-demo'],
+      );
+      debugPrint('Demo account hash corrected.');
+    }
   }
 
   static Future<Map<String, dynamic>> getDemoCredentials() async {

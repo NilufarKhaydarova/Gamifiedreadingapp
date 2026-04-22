@@ -1,0 +1,205 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Booklify",
+  "@appTitle": { "description": "Application title" },
+
+  "navLearn": "Learn",
+  "navBooks": "Books",
+  "navInsights": "Insights",
+  "navProfile": "Profile",
+
+  "commonCancel": "Cancel",
+  "commonSave": "Save",
+  "commonChange": "Change",
+  "commonOr": "or",
+  "commonLoading": "Loading…",
+  "commonError": "Something went wrong. Please try again.",
+  "commonSignOut": "Sign Out",
+  "commonClose": "Close",
+
+  "topicTitle": "What do you\nwant to learn?",
+  "topicSubtitle": "We'll create a personalized reading path with the best books, quizzes, and AI discussions.",
+  "topicHint": "e.g. Philosophy, AI Engineering…",
+  "topicPopular": "Popular topics",
+  "topicBuild": "Build My Curriculum",
+  "topicUpload": "Upload a Book Instead",
+  "topicBuilding": "Building your curriculum...",
+  "topicCurating": "Curating the best books on\n\"{topic}\"",
+  "@topicCurating": {
+    "placeholders": { "topic": { "type": "String" } }
+  },
+  "topicMoment": "This may take a moment ✨",
+  "topicEmpty": "Tell us what you want to learn!",
+
+  "profileLevel": "Level {level}",
+  "@profileLevel": {
+    "placeholders": { "level": { "type": "int" } }
+  },
+  "profileTotalXP": "{xp} total XP",
+  "@profileTotalXP": {
+    "placeholders": { "xp": { "type": "int" } }
+  },
+  "profileToLevel": "to Level {level}",
+  "@profileToLevel": {
+    "placeholders": { "level": { "type": "int" } }
+  },
+  "profileDayStreak": "Day Streak",
+  "profileLessonsDone": "Lessons Done",
+  "profileProgress": "Progress",
+  "profileForest": "Your Learning Forest",
+  "profileForest0": "Plant your first tree by finishing a lesson!",
+  "profileForest1": "Your forest is just beginning to grow...",
+  "profileForest2": "A small grove is taking shape!",
+  "profileForest3": "Your forest is thriving!",
+  "profileForest4": "A magnificent forest! You're a true scholar.",
+  "profileThisWeek": "This Week",
+  "profileStreakBadge": "🔥 {n} day streak",
+  "@profileStreakBadge": {
+    "placeholders": { "n": { "type": "int" } }
+  },
+  "profileCurriculum": "Current Curriculum",
+  "profileSignOutTitle": "Sign Out?",
+  "profileSignOutBody": "You'll need to sign in again to access your progress.",
+  "profileChangeTopicTitle": "Change Topic?",
+  "profileChangeTopicBody": "This will clear your current curriculum. Your XP will be kept.",
+  "profileChangeTopicBtn": "Change Topic",
+  "profileNoLessons": "No lessons yet",
+  "profileLanguage": "Language",
+
+  "insightsTitle": "Knowledge Map",
+  "insightsTopic": "Topic: {topic}",
+  "@insightsTopic": {
+    "placeholders": { "topic": { "type": "String" } }
+  },
+  "insightsChoose": "Choose a topic to begin",
+  "insightsNoTopicTitle": "No learning topic yet",
+  "insightsNoTopicBody": "Go to the Learn tab and choose a topic. Your knowledge map will appear here as you complete lessons.",
+  "insightsMapLabel": "KNOWLEDGE MAP",
+  "insightsMapSub": "Your reader profile at a glance",
+  "insightsComplete": "{pct}% complete",
+  "@insightsComplete": {
+    "placeholders": { "pct": { "type": "int" } }
+  },
+  "insightsConcepts": "CONCEPTS AT A GLANCE",
+  "insightsMastered": "Mastered",
+  "insightsInProgress": "In Progress",
+  "insightsGaps": "Gaps",
+  "insightsUnlock": "Complete lessons\nto unlock",
+  "insightsLookingGood": "Looking good!",
+  "insightsDna": "READING DNA",
+  "insightsDnaSub": "How the AI adapts to you",
+  "insightsAvgSpeed": "Avg speed",
+  "insightsHighlights": "Highlights",
+  "insightsAiChats": "AI chats",
+  "insightsBooks": "Books",
+  "insightsBooksProfile": "Books in your profile",
+  "insightsDnaEmpty": "Your Reading DNA will appear here",
+  "insightsDnaEmptyBody": "Read books, highlight passages, and chat with the AI.\nThe more you read, the more the app adapts to you.",
+  "insightsTopGaps": "🔍 TOP GAPS TO CLOSE",
+  "insightsThesis": "🎓 THESIS RELEVANCE",
+  "insightsFocusNext": "🚀 FOCUS NEXT",
+  "insightsGapFocus": "Focus on this gap to strengthen your understanding.",
+  "insightsWhatHighlight": "🔖 WHAT YOU HIGHLIGHT",
+  "insightsWhatAsk": "🤖 WHAT YOU ASK THE AI",
+  "insightsBuilding": "Building your knowledge map…",
+  "insightsRefresh": "Refresh analysis",
+  "insightsTapNode": "Tap any node to explore",
+  "radarProgress": "Progress",
+  "radarSpeed": "Speed",
+  "radarDepth": "Depth",
+  "radarAi": "AI\nEngagement",
+  "radarConsistency": "Consistency",
+  "insightsMasteredConcept": "MASTERED CONCEPT",
+  "insightsKnowledgeGap": "KNOWLEDGE GAP",
+  "insightsInProgressLabel": "IN PROGRESS",
+  "insightsUpcoming": "UPCOMING",
+
+  "readingCompleteDay": "Complete Day",
+  "readingAskAi": "Ask AI",
+  "readingHighlight": "Highlight",
+  "readingBookmark": "Bookmark",
+  "readingSave": "Save!",
+  "readingHighlightSaved": "Highlight saved ✓",
+  "readingBookmarkSaved": "Bookmark saved at {pct}% ✓",
+  "@readingBookmarkSaved": {
+    "placeholders": { "pct": { "type": "int" } }
+  },
+  "readingSelectHint": "Long-press words to select text, then tap Highlight",
+  "readingThemeLight": "Light",
+  "readingThemeSepia": "Sepia",
+  "readingThemeDark": "Dark",
+  "readingSelected": "Selected",
+  "readingSaving": "Saving…",
+  "readingSessionComplete": "Session Complete! 🎉",
+  "readingMinutesRead": "{n} min",
+  "@readingMinutesRead": {
+    "placeholders": { "n": { "type": "int" } }
+  },
+  "readingWpm": "{n} wpm",
+  "@readingWpm": {
+    "placeholders": { "n": { "type": "int" } }
+  },
+  "readingXpEarned": "+{xp} XP",
+  "@readingXpEarned": {
+    "placeholders": { "xp": { "type": "int" } }
+  },
+  "readingDone": "Done",
+  "readingKeepReading": "Keep Reading",
+
+  "lessonKeepReading": "Keep reading to continue ↓",
+  "lessonQuickCheck": "Quick Check",
+  "lessonReflect": "Reflect & Discuss",
+  "lessonSkip": "Skip for Now",
+  "lessonLoading": "Generating questions…",
+  "lessonNext": "Next",
+  "lessonComplete": "Complete ✓",
+  "lessonCorrect": "Correct! 🎉",
+  "lessonWrong": "Not quite — try again",
+  "lessonExplanation": "Explanation",
+  "lessonAllDone": "All done! 🎉",
+  "lessonXpEarned": "+{xp} XP earned!",
+  "@lessonXpEarned": {
+    "placeholders": { "xp": { "type": "int" } }
+  },
+  "lessonWeek": "Week {n}",
+  "@lessonWeek": {
+    "placeholders": { "n": { "type": "int" } }
+  },
+  "lessonDay": "Day {n}",
+  "@lessonDay": {
+    "placeholders": { "n": { "type": "int" } }
+  },
+  "lessonLocked": "Locked",
+  "lessonCompleted": "Completed",
+
+  "booksTitle": "My Library",
+  "booksAdd": "Add Book",
+  "booksEmpty": "No books yet",
+  "booksEmptyBody": "Upload a PDF or EPUB to get started.",
+  "booksReading": "Reading",
+  "booksCompleted": "Completed",
+  "booksNotStarted": "Not started",
+  "booksDays": "{n} days",
+  "@booksDays": {
+    "placeholders": { "n": { "type": "int" } }
+  },
+
+  "authSignIn": "Sign In",
+  "authSignUp": "Sign Up",
+  "authEmail": "Email",
+  "authPassword": "Password",
+  "authName": "Your name",
+  "authForgot": "Forgot password?",
+  "authNoAccount": "Don't have an account? Sign up",
+  "authHasAccount": "Already have an account? Sign in",
+  "authWelcome": "Welcome to Booklify",
+  "authTagline": "Your gamified reading companion",
+
+  "deepReader": "Deep Reader",
+  "lightReader": "Light Reader",
+  "moderateReader": "Moderate Reader",
+  "deepReaderDesc": "You explore every detail",
+  "lightReaderDesc": "You read at a swift pace",
+  "moderateReaderDesc": "Balanced depth and speed"
+}

@@ -695,6 +695,60 @@ Return ONLY valid JSON:
     return json.decode(cleaned) as Map<String, dynamic>;
   }
 
+  // ── Quiz question from a specific passage ─────────────────────────────────
+  // Used for book-driven lessons where we have the actual text.
+
+  Future<Map<String, dynamic>> generateQuizForPassage({
+    required String passage,
+    required String bookTitle,
+    required String sectionTitle,
+  }) async {
+    final excerpt = passage.length > 700
+        ? passage.substring(0, 700)
+        : passage;
+
+    final prompt = '''
+You are creating a reading comprehension quiz for a book app.
+
+Book: "$bookTitle"
+Section: "$sectionTitle"
+
+Passage the reader just finished:
+"""
+$excerpt
+"""
+
+Generate exactly 1 multiple-choice question that tests understanding of WHAT HAPPENED in this specific passage.
+- The question must be answerable only from this passage (no outside knowledge needed)
+- Make the wrong options plausible but clearly incorrect to someone who read carefully
+- Keep it concise
+
+Return ONLY valid JSON — no markdown, no explanation:
+{
+  "question": "...",
+  "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+  "correctIndex": 0,
+  "explanation": "One sentence explaining why the correct answer is right."
+}''';
+
+    final raw = await _message(
+      systemPrompt: 'You are a reading comprehension quiz generator. Return only valid JSON.',
+      messages: [
+        {'role': 'user', 'content': prompt}
+      ],
+      model: ApiKeys.claudeModel,
+      maxTokens: 400,
+      temperature: 0.4,
+    );
+
+    final cleaned = raw
+        .replaceAll(RegExp(r'^```json\s*', multiLine: true), '')
+        .replaceAll(RegExp(r'^```\s*', multiLine: true), '')
+        .trim();
+
+    return json.decode(cleaned) as Map<String, dynamic>;
+  }
+
   // ── Episode Metadata ───────────────────────────────────────────────────────
 
   Future<EpisodeMetadata> generateEpisodeMetadata({
@@ -835,6 +889,121 @@ and end with a follow-up question. Under 100 words. Respond in the user's langua
       );
     } catch (e) {
       return "That's a great observation! What do you think led to that moment?";
+    }
+  }
+
+  // ── Curriculum Knowledge Gap Analysis ─────────────────────────────────────
+
+  Future<Map<String, dynamic>> analyzeKnowledgeGaps({
+    required String topic,
+    required List<String> completedLessons,
+    required List<String> pendingLessons,
+  }) async {
+    final prompt = '''
+A student is learning about "$topic" using a structured reading curriculum.
+
+Lessons they have COMPLETED:
+${completedLessons.map((l) => '✓ $l').join('\n')}
+
+Lessons they have NOT yet completed:
+${pendingLessons.map((l) => '○ $l').join('\n')}
+
+Analyse their knowledge state and return ONLY valid JSON:
+{
+  "whatYouKnow": ["3-6 specific intellectual concepts or skills they have acquired from completed lessons"],
+  "gaps": [
+    {"concept": "Name of gap concept", "why": "1 sentence why this gap matters for mastering $topic"},
+    {"concept": "Name of gap concept", "why": "1 sentence why this gap matters for mastering $topic"}
+  ],
+  "thesisRelevance": "2 sentences on how their current progress relates to building deep expertise in $topic — be specific about what foundational thinking they have developed",
+  "nextStep": "1 concrete sentence telling them exactly what to focus on next and why it will unlock deeper understanding"
+}
+
+Be specific — reference actual book titles and lesson names from the lists above.''';
+
+    try {
+      final raw = await _message(
+        systemPrompt: 'You are a sharp academic advisor mapping a student\'s knowledge. Return only valid JSON.',
+        messages: [{'role': 'user', 'content': prompt}],
+        model: ApiKeys.claudeModel,
+        maxTokens: 700,
+        temperature: 0.4,
+      );
+      final cleaned = raw
+          .replaceAll(RegExp(r'^```json\s*', multiLine: true), '')
+          .replaceAll(RegExp(r'^```\s*', multiLine: true), '')
+          .trim();
+      return json.decode(cleaned) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('analyzeKnowledgeGaps error: $e');
+      return {};
+    }
+  }
+
+  // ── Reading Insights Analysis ──────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> analyzeReadingInsights({
+    required List<Map<String, dynamic>> books,
+    required List<String> keyIdeas,
+    required int totalMinutes,
+  }) async {
+    final bookLines = books.map((b) =>
+        '- "${b['title']}" by ${b['author']}: ${b['completionPct']}% read (${b['chunksRead']}/${b['totalChunks']} sessions)').join('\n');
+    final ideasSample = keyIdeas.length > 30 ? keyIdeas.sublist(0, 30) : keyIdeas;
+    final ideasText = ideasSample.map((i) => '• $i').join('\n');
+    final hours = (totalMinutes / 60).toStringAsFixed(1);
+
+    final prompt = '''
+You are an insightful reading analyst. A reader has shared their reading history with you.
+
+Reading time: $hours hours total
+Books in progress or completed:
+$bookLines
+
+Key ideas from their completed reading sessions:
+$ideasText
+
+Analyse their reading life and return ONLY valid JSON:
+{
+  "themes": ["3-5 short intellectual themes they are engaging with, e.g. 'Moral philosophy', 'Human nature'"],
+  "strength": "1 sentence — what they are clearly strong at intellectually based on what they've read",
+  "gap": "1 sentence — the most notable gap or blind spot in their reading",
+  "depth": "1 sentence — are they reading broadly or deeply? What does their pattern suggest?",
+  "recommendations": [
+    {"title": "Book Title", "author": "Author", "reason": "1 sentence why this fills a gap for them"},
+    {"title": "Book Title", "author": "Author", "reason": "1 sentence why this fills a gap for them"},
+    {"title": "Book Title", "author": "Author", "reason": "1 sentence why this fills a gap for them"}
+  ]
+}
+
+Be specific and honest — reference actual books they've read. Do not be generic.''';
+
+    try {
+      final raw = await _message(
+        systemPrompt: 'You are a sharp, honest reading analyst. Return only valid JSON.',
+        messages: [{'role': 'user', 'content': prompt}],
+        model: ApiKeys.claudeModel,
+        maxTokens: 800,
+        temperature: 0.5,
+      );
+      final cleaned = raw
+          .replaceAll(RegExp(r'^```json\s*', multiLine: true), '')
+          .replaceAll(RegExp(r'^```\s*', multiLine: true), '')
+          .trim();
+      return json.decode(cleaned) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('analyzeReadingInsights error: $e');
+      return {
+        'themes': ['Keep reading to unlock your analysis'],
+        'strength': 'You are building your reading habit.',
+        'gap': 'Complete more reading sessions for a personalised analysis.',
+        'depth': 'Start reading to see your intellectual profile.',
+        'recommendations': [
+          {'title': 'Thinking, Fast and Slow', 'author': 'Daniel Kahneman', 'reason': 'A great foundation for any reader.'},
+          {'title': 'Meditations', 'author': 'Marcus Aurelius', 'reason': 'Short, powerful, and endlessly re-readable.'},
+          {'title': 'Sapiens', 'author': 'Yuval Noah Harari', 'reason': 'Broad context for understanding humanity.'},
+        ],
+      };
     }
   }
 

@@ -20,7 +20,30 @@ class CurriculumMapScreen extends ConsumerWidget {
         body: Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) => Scaffold(
-        body: Center(child: Text('Error: $e')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  e.toString().contains('Instance of')
+                      ? 'Something went wrong. Please try again.'
+                      : e.toString(),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () =>
+                      ref.invalidate(curriculumProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
       data: (curriculum) {
         if (curriculum == null) {

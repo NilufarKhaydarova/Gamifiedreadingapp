@@ -1,9 +1,11 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app.dart' show AppLocalizationsX;
 import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/curriculum_provider.dart';
+import '../../providers/locale_provider.dart';
 import '../curriculum/topic_input_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -122,13 +124,14 @@ class ProfileScreen extends ConsumerWidget {
       actions: [
         IconButton(
           icon: const Icon(Icons.logout_rounded, color: Colors.white70),
-          onPressed: () => _confirmSignOut(context, ref),
+          onPressed: () => _confirmSignOut(context, ref, context.l10n),
         ),
       ],
     );
   }
 
   Widget _buildBody(BuildContext context, WidgetRef ref, curriculum) {
+    final l = context.l10n;
     final xp = curriculum?.totalXP ?? 0;
     final streak = curriculum?.streak ?? 0;
     final completedLessons = curriculum?.completedLessons ?? 0;
@@ -137,36 +140,32 @@ class ProfileScreen extends ConsumerWidget {
     final title = curriculum?.title ?? '';
     final level = _xpToLevel(xp);
     final xpInLevel = xp % 500;
-    final xpForNext = 500;
+    const xpForNext = 500;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 20),
-        // XP Level card
-        _buildXPCard(context, xp, level, xpInLevel, xpForNext),
+        _buildXPCard(context, l, xp, level, xpInLevel, xpForNext),
         const SizedBox(height: 16),
-        // Stats row
-        _buildStatsRow(context, streak, completedLessons, totalLessons),
+        _buildStatsRow(context, l, streak, completedLessons, totalLessons),
         const SizedBox(height: 20),
-        // Forest / Tree visualization
-        _buildForestCard(context, completedLessons, totalLessons),
+        _buildForestCard(context, l, completedLessons, totalLessons),
         const SizedBox(height: 20),
-        // Streak calendar
-        _buildStreakCalendar(context, streak),
+        _buildStreakCalendar(context, l, streak),
         const SizedBox(height: 20),
-        // Current curriculum
         if (curriculum != null) ...[
-          _buildCurriculumCard(context, ref, title, topic, completedLessons, totalLessons),
+          _buildCurriculumCard(context, ref, l, title, topic, completedLessons, totalLessons),
           const SizedBox(height: 20),
         ],
-        // Sign out
-        _buildDangerZone(context, ref),
+        _buildLanguageCard(context, ref, l),
+        const SizedBox(height: 20),
+        _buildDangerZone(context, ref, l),
       ],
     );
   }
 
-  Widget _buildXPCard(BuildContext context, int xp, int level,
+  Widget _buildXPCard(BuildContext context, l, int xp, int level,
       int xpInLevel, int xpForNext) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -206,7 +205,7 @@ class ProfileScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Level $level',
+                      l.profileLevel(level),
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -215,7 +214,7 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      '$xp total XP',
+                      l.profileTotalXP(xp),
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -237,7 +236,7 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'to Level ${level + 1}',
+                    l.profileToLevel(level + 1),
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -264,7 +263,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsRow(BuildContext context, int streak,
+  Widget _buildStatsRow(BuildContext context, l, int streak,
       int completedLessons, int totalLessons) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -273,14 +272,14 @@ class ProfileScreen extends ConsumerWidget {
           _StatCard(
             emoji: '🔥',
             value: '$streak',
-            label: 'Day Streak',
+            label: l.profileDayStreak,
             color: AppColors.streakOrange,
           ),
           const SizedBox(width: 10),
           _StatCard(
             emoji: '📚',
             value: '$completedLessons',
-            label: 'Lessons Done',
+            label: l.profileLessonsDone,
             color: AppColors.primary,
           ),
           const SizedBox(width: 10),
@@ -289,7 +288,7 @@ class ProfileScreen extends ConsumerWidget {
             value: totalLessons > 0
                 ? '${(completedLessons / totalLessons * 100).round()}%'
                 : '0%',
-            label: 'Progress',
+            label: l.profileProgress,
             color: AppColors.gems,
           ),
         ],
@@ -298,7 +297,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Widget _buildForestCard(
-      BuildContext context, int completedLessons, int totalLessons) {
+      BuildContext context, l, int completedLessons, int totalLessons) {
     final progress = totalLessons > 0
         ? completedLessons / totalLessons
         : 0.0;
@@ -319,14 +318,14 @@ class ProfileScreen extends ConsumerWidget {
               const Text('🌲', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
               Text(
-                'Your Learning Forest',
+                l.profileForest,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            _forestDescription(completedLessons),
+            _forestDescription(l, completedLessons),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -344,7 +343,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStreakCalendar(BuildContext context, int streak) {
+  Widget _buildStreakCalendar(BuildContext context, l, int streak) {
     final now = DateTime.now();
     final activeDays = <int>{};
     for (int i = 0; i < streak; i++) {
@@ -369,7 +368,7 @@ class ProfileScreen extends ConsumerWidget {
               const Text('📅', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
               Text(
-                'This Week',
+                l.profileThisWeek,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const Spacer(),
@@ -382,7 +381,7 @@ class ProfileScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '🔥 $streak day streak',
+                    l.profileStreakBadge(streak),
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -457,7 +456,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCurriculumCard(BuildContext context, WidgetRef ref,
+  Widget _buildCurriculumCard(BuildContext context, WidgetRef ref, l,
       String title, String topic, int completedLessons, int totalLessons) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -474,18 +473,18 @@ class ProfileScreen extends ConsumerWidget {
             children: [
               const Text('🎓', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
-              Text('Current Curriculum',
+              Text(l.profileCurriculum,
                   style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
               TextButton(
-                onPressed: () => _confirmChangeTopic(context, ref),
+                onPressed: () => _confirmChangeTopic(context, ref, l),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 4),
                   minimumSize: Size.zero,
                 ),
-                child: const Text('Change',
-                    style: TextStyle(
+                child: Text(l.commonChange,
+                    style: const TextStyle(
                         fontSize: 12, color: AppColors.primaryDark)),
               ),
             ],
@@ -541,13 +540,93 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDangerZone(BuildContext context, WidgetRef ref) {
+  Widget _buildLanguageCard(BuildContext context, WidgetRef ref, l) {
+    final currentLocale = ref.watch(localeProvider);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🌐', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Text(l.profileLanguage,
+                  style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: supportedAppLocales.map((al) {
+              final selected =
+                  currentLocale.languageCode == al.locale.languageCode;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => ref
+                        .read(localeProvider.notifier)
+                        .setLocale(al.locale),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.primarySurface
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selected
+                              ? AppColors.primary
+                              : AppColors.border,
+                          width: selected ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(al.flag,
+                              style: const TextStyle(fontSize: 22)),
+                          const SizedBox(height: 4),
+                          Text(
+                            al.name,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: selected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: selected
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDangerZone(BuildContext context, WidgetRef ref, l) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: OutlinedButton.icon(
-        onPressed: () => _confirmSignOut(context, ref),
+        onPressed: () => _confirmSignOut(context, ref, l),
         icon: const Icon(Icons.logout_rounded, size: 18),
-        label: const Text('Sign Out'),
+        label: Text(l.commonSignOut),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.error,
           side: const BorderSide(color: AppColors.error),
@@ -560,17 +639,16 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _confirmSignOut(BuildContext context, WidgetRef ref) {
+  void _confirmSignOut(BuildContext context, WidgetRef ref, l) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sign Out?'),
-        content: const Text(
-            'You\'ll need to sign in again to access your progress.'),
+        title: Text(l.profileSignOutTitle),
+        content: Text(l.profileSignOutBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(l.commonCancel),
           ),
           ElevatedButton(
             onPressed: () {
@@ -579,24 +657,23 @@ class ProfileScreen extends ConsumerWidget {
             },
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error),
-            child: const Text('Sign Out'),
+            child: Text(l.commonSignOut),
           ),
         ],
       ),
     );
   }
 
-  void _confirmChangeTopic(BuildContext context, WidgetRef ref) {
+  void _confirmChangeTopic(BuildContext context, WidgetRef ref, l) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Change Topic?'),
-        content: const Text(
-            'This will clear your current curriculum. Your XP will be kept.'),
+        title: Text(l.profileChangeTopicTitle),
+        content: Text(l.profileChangeTopicBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(l.commonCancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -611,7 +688,7 @@ class ProfileScreen extends ConsumerWidget {
                 );
               }
             },
-            child: const Text('Change Topic'),
+            child: Text(l.profileChangeTopicBtn),
           ),
         ],
       ),
@@ -620,12 +697,12 @@ class ProfileScreen extends ConsumerWidget {
 
   int _xpToLevel(int xp) => (xp / 500).floor() + 1;
 
-  String _forestDescription(int completed) {
-    if (completed == 0) return 'Plant your first tree by finishing a lesson!';
-    if (completed < 3) return 'Your forest is just beginning to grow...';
-    if (completed < 7) return 'A small grove is taking shape!';
-    if (completed < 12) return 'Your forest is thriving!';
-    return 'A magnificent forest! You\'re a true scholar.';
+  String _forestDescription(l, int completed) {
+    if (completed == 0) return l.profileForest0;
+    if (completed < 3) return l.profileForest1;
+    if (completed < 7) return l.profileForest2;
+    if (completed < 12) return l.profileForest3;
+    return l.profileForest4;
   }
 }
 
@@ -704,7 +781,7 @@ class _ForestVisualization extends StatelessWidget {
             const Text('🌱', style: TextStyle(fontSize: 40)),
             const SizedBox(height: 8),
             Text(
-              'No lessons yet',
+              context.l10n.profileNoLessons,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textHint,
                   ),

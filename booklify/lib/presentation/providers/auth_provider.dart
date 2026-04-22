@@ -36,11 +36,16 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) {
 
 // ─── Auth Notifier ────────────────────────────────────────────────────────────
 
-class AuthNotifier extends StateNotifier<AuthState> {
-  final DatabaseService _db;
+class AuthNotifier extends Notifier<AuthState> {
+  late DatabaseService _db;
 
-  AuthNotifier(this._db) : super(const AuthState()) {
-    _init();
+  @override
+  AuthState build() {
+    _db = ref.read(databaseServiceProvider);
+    // Defer until after build() returns so the provider is fully initialized
+    // before _init() synchronously touches `state`.
+    Future.microtask(_init);
+    return const AuthState();
   }
 
   Future<void> _init() async {
@@ -110,10 +115,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 // ─── Providers ────────────────────────────────────────────────────────────────
 
 final authProvider =
-    StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  final db = ref.watch(databaseServiceProvider);
-  return AuthNotifier(db);
-});
+    NotifierProvider<AuthNotifier, AuthState>(() => AuthNotifier());
 
 final authUserProvider = Provider<models.User?>((ref) {
   return ref.watch(authProvider).user;

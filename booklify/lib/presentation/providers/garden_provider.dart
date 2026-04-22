@@ -7,7 +7,15 @@ import 'auth_provider.dart';
 // ─── Current Book Provider ────────────────────────────────────────────────────
 // Set by LibraryScreen when user picks a book.
 
-final currentBookProvider = StateProvider<Book?>((ref) => null);
+class CurrentBookNotifier extends Notifier<Book?> {
+  @override
+  Book? build() => null;
+
+  void setBook(Book? book) => state = book;
+}
+
+final currentBookProvider =
+    NotifierProvider<CurrentBookNotifier, Book?>(() => CurrentBookNotifier());
 
 // ─── Books List Provider ──────────────────────────────────────────────────────
 
@@ -37,6 +45,49 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
   Future<void> deleteBook(String bookId) async {
     final db = ref.read(databaseServiceProvider);
     await db.deleteBook(bookId);
+    ref.invalidateSelf();
+  }
+
+  Book? getActiveBook() {
+    final books = state.value ?? [];
+    if (books.isEmpty) return null;
+    Book? bestBook;
+    DateTime? bestDate;
+    for (final book in books) {
+      final completed =
+          book.chunks.where((c) => c.completed && c.completedDate != null);
+      if (completed.isEmpty) {
+        bestBook ??= book;
+        continue;
+      }
+      final latest = completed
+          .map((c) => c.completedDate!)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      if (bestDate == null || latest.isAfter(bestDate)) {
+        bestDate = latest;
+        bestBook = book;
+      }
+    }
+    return bestBook ??
+        books.firstWhere((b) => b.chunks.isNotEmpty,
+            orElse: () => books.first);
+  }
+
+  Future<void> markChunkComplete(String bookId, String chunkId) async {
+    final books = state.value ?? [];
+    final bookIndex = books.indexWhere((b) => b.id == bookId);
+    if (bookIndex == -1) return;
+
+    final book = books[bookIndex];
+    final updatedChunks = book.chunks.map((c) {
+      if (c.id == chunkId && !c.completed) {
+        return c.copyWith(completed: true, completedDate: DateTime.now());
+      }
+      return c;
+    }).toList();
+
+    final db = ref.read(databaseServiceProvider);
+    await db.updateBookChunks(bookId, updatedChunks);
     ref.invalidateSelf();
   }
 
