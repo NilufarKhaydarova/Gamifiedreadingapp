@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../../core/utils/text_spans.dart';
 import '../../data/models/book.dart';
 import '../../data/services/database_service.dart';
 import '../../data/services/claude_service.dart';
@@ -142,69 +142,8 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
 
   /// Creates day-by-day chunks from actual book text without AI.
   List<BookChunk> _chunksFromText(String content, String title,
-      {int days = 7}) {
-    final paragraphs = content
-        .split('\n\n')
-        .where((p) => p.trim().isNotEmpty)
-        .toList();
-
-    if (paragraphs.isEmpty) {
-      final lines = content
-          .split('\n')
-          .where((l) => l.trim().isNotEmpty)
-          .toList();
-      return _chunksFromText(lines.join('\n\n'), title, days: days);
-    }
-
-    final parasPerDay =
-        (paragraphs.length / days).ceil().clamp(1, paragraphs.length);
-    final chunks = <BookChunk>[];
-    int charOffset = 0;
-
-    for (int day = 0; day < days; day++) {
-      final start = day * parasPerDay;
-      if (start >= paragraphs.length) break;
-      final end =
-          (start + parasPerDay).clamp(0, paragraphs.length);
-      final dayParas = paragraphs.sublist(start, end);
-      final dayText = dayParas.join('\n\n');
-
-      final subChunks = dayParas.asMap().entries.map((e) {
-        return SubChunk(
-          id: 'sub-${day + 1}-${e.key}',
-          content: e.value,
-          type: e.value.split(' ').length > 300
-              ? ChunkType.chapter
-              : ChunkType.section,
-          wordCount: e.value.split(' ').length,
-        );
-      }).toList();
-
-      final firstWords =
-          dayParas.first.split(' ').take(6).join(' ').replaceAll('\n', ' ');
-      final preview = dayParas.first.length > 120
-          ? '${dayParas.first.substring(0, 120)}…'
-          : dayParas.first;
-
-      chunks.add(BookChunk(
-        id: 'day-${day + 1}',
-        dayNumber: day + 1,
-        episodeTitle: 'Day ${day + 1} — $firstWords',
-        keyIdea: '',
-        preview: preview,
-        difficulty: Difficulty.moderate,
-        estimatedMinutes:
-            (dayText.split(' ').length / 220).ceil().clamp(5, 90),
-        startOffset: charOffset,
-        endOffset: charOffset + dayText.length,
-        subChunks: subChunks,
-        glossary: const {},
-      ));
-      charOffset += dayText.length;
-    }
-
-    return chunks;
-  }
+          {int days = 7}) =>
+      chunksFromText(content, days: days);
 
   // ── Chunk progress ─────────────────────────────────────────────────────────
 
@@ -296,3 +235,52 @@ final booksProvider =
 
 final userBooksProvider = Provider<List<Book>>(
     (ref) => ref.watch(booksProvider).value ?? []);
+
+/// Splits book text into [days] reading days by paragraph, without AI.
+/// Offsets refer to [content] itself, so the passage can be sliced back out.
+@visibleForTesting
+List<BookChunk> chunksFromText(String content, {int days = 7}) {
+  final paragraphs = splitParagraphs(content);
+  if (paragraphs.isEmpty) return [];
+
+  final bounds = evenGroupBounds(paragraphs.length, days);
+  final chunks = <BookChunk>[];
+
+  for (int day = 0; day + 1 < bounds.length; day++) {
+    final dayParas = paragraphs.sublist(bounds[day], bounds[day + 1]);
+    final texts = dayParas.map((p) => normalizeLineEndings(p.of(content))).toList();
+    final startOffset = dayParas.first.start;
+    final endOffset = dayParas.last.end;
+    final dayWords = texts.fold<int>(0, (sum, t) => sum + countWords(t));
+
+    final subChunks = texts.asMap().entries.map((e) {
+      final words = countWords(e.value);
+      return SubChunk(
+        id: 'sub-${day + 1}-${e.key}',
+        content: e.value,
+        type: words > 300 ? ChunkType.chapter : ChunkType.section,
+        wordCount: words,
+      );
+    }).toList();
+
+    final first = texts.first;
+    final firstWords = first.split(RegExp(r'\s+')).take(6).join(' ');
+    final preview = first.length > 120 ? '${first.substring(0, 120)}…' : first;
+
+    chunks.add(BookChunk(
+      id: 'day-${day + 1}',
+      dayNumber: day + 1,
+      episodeTitle: 'Day ${day + 1} — $firstWords',
+      keyIdea: '',
+      preview: preview,
+      difficulty: Difficulty.moderate,
+      estimatedMinutes: (dayWords / 220).ceil().clamp(5, 90),
+      startOffset: startOffset,
+      endOffset: endOffset,
+      subChunks: subChunks,
+      glossary: const {},
+    ));
+  }
+
+  return chunks;
+}

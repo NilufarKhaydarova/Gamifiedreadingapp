@@ -15,15 +15,20 @@ class AuthState {
     this.errorMessage,
   });
 
+  static const _unset = Object();
+
+  /// Pass `errorMessage: null` to clear the message; omit it to keep it.
   AuthState copyWith({
     AuthStatus? status,
     models.User? user,
-    String? errorMessage,
+    Object? errorMessage = _unset,
   }) {
     return AuthState(
       status: status ?? this.status,
       user: user ?? this.user,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: identical(errorMessage, _unset)
+          ? this.errorMessage
+          : errorMessage as String?,
     );
   }
 }
@@ -35,6 +40,10 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) {
 });
 
 // ─── Auth Notifier ────────────────────────────────────────────────────────────
+
+/// User-facing text for an error ("Exception: Bad password" → "Bad password").
+String _friendlyError(Object e) =>
+    e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
 
 class AuthNotifier extends Notifier<AuthState> {
   late DatabaseService _db;
@@ -59,7 +68,7 @@ class AuthNotifier extends Notifier<AuthState> {
       }
     } catch (e) {
       state = state.copyWith(
-          status: AuthStatus.unauthenticated, errorMessage: e.toString());
+          status: AuthStatus.unauthenticated, errorMessage: _friendlyError(e));
     }
   }
 
@@ -78,7 +87,7 @@ class AuthNotifier extends Notifier<AuthState> {
       state = state.copyWith(status: AuthStatus.authenticated, user: user);
     } catch (e) {
       state = state.copyWith(
-          status: AuthStatus.error, errorMessage: e.toString());
+          status: AuthStatus.error, errorMessage: _friendlyError(e));
     }
   }
 
@@ -92,7 +101,7 @@ class AuthNotifier extends Notifier<AuthState> {
       state = state.copyWith(status: AuthStatus.authenticated, user: user);
     } catch (e) {
       state = state.copyWith(
-          status: AuthStatus.error, errorMessage: e.toString());
+          status: AuthStatus.error, errorMessage: _friendlyError(e));
     }
   }
 
@@ -103,7 +112,7 @@ class AuthNotifier extends Notifier<AuthState> {
       state = const AuthState(status: AuthStatus.unauthenticated);
     } catch (e) {
       state = state.copyWith(
-          status: AuthStatus.error, errorMessage: e.toString());
+          status: AuthStatus.error, errorMessage: _friendlyError(e));
     }
   }
 

@@ -3,6 +3,7 @@ import '../../data/models/progress.dart';
 import '../../data/models/book.dart';
 import '../../widgets/garden/tree_painter.dart';
 import 'auth_provider.dart';
+import 'user_stats_provider.dart';
 
 // ─── Current Book Provider ────────────────────────────────────────────────────
 // Set by LibraryScreen when user picks a book.
@@ -34,6 +35,7 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
     final db = ref.read(databaseServiceProvider);
     await db.saveBook(book, user.id);
     ref.invalidateSelf();
+    await ref.read(userStatsProvider.notifier).recordBookStarted();
   }
 
   Future<void> updateChunks(String bookId, List<BookChunk> chunks) async {
@@ -73,12 +75,15 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
             orElse: () => books.first);
   }
 
-  Future<void> markChunkComplete(String bookId, String chunkId) async {
+  /// Marks a day complete. Returns achievements unlocked by finishing the book.
+  Future<List<String>> markChunkComplete(String bookId, String chunkId) async {
     final books = state.value ?? [];
     final bookIndex = books.indexWhere((b) => b.id == bookId);
-    if (bookIndex == -1) return;
+    if (bookIndex == -1) return const [];
 
     final book = books[bookIndex];
+    final wasFinished =
+        book.chunks.isNotEmpty && book.chunks.every((c) => c.completed);
     final updatedChunks = book.chunks.map((c) {
       if (c.id == chunkId && !c.completed) {
         return c.copyWith(completed: true, completedDate: DateTime.now());
@@ -89,6 +94,14 @@ class BooksNotifier extends AsyncNotifier<List<Book>> {
     final db = ref.read(databaseServiceProvider);
     await db.updateBookChunks(bookId, updatedChunks);
     ref.invalidateSelf();
+
+    // Count the book as finished once, when its last day is completed.
+    final nowFinished =
+        updatedChunks.isNotEmpty && updatedChunks.every((c) => c.completed);
+    if (nowFinished && !wasFinished) {
+      return ref.read(userStatsProvider.notifier).recordBookFinished();
+    }
+    return const [];
   }
 
   Future<void> refresh() async {

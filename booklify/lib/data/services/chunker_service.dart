@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import '../../core/utils/text_spans.dart';
 import '../models/book.dart';
 
 // Internal text chunk used during splitting
@@ -29,37 +30,33 @@ class SmartChunkerService {
     // Step 1: Split content into natural breaks
     final textChunks = _splitByNaturalBreaks(content);
 
-    // Step 2: Group text chunks into daily sessions
+    // Step 2: Group text chunks into daily sessions, spread evenly so the
+    // reader gets the number of days they asked for (up to one per unit).
     final effectiveDays = totalDays.clamp(1, textChunks.length.clamp(1, 365));
-    final chunksPerDay =
-        (textChunks.length / effectiveDays).ceil().clamp(1, textChunks.length);
-    final dailyGroups = <List<_TextChunk>>[];
-
-    for (int i = 0; i < textChunks.length; i += chunksPerDay) {
-      final end = (i + chunksPerDay).clamp(0, textChunks.length);
-      dailyGroups.add(textChunks.sublist(i, end));
-    }
+    final bounds = evenGroupBounds(textChunks.length, effectiveDays);
+    final dailyGroups = <List<_TextChunk>>[
+      for (int i = 0; i + 1 < bounds.length; i++)
+        textChunks.sublist(bounds[i], bounds[i + 1]),
+    ];
 
     // Step 3: Build BookChunks
     final enrichedChunks = <BookChunk>[];
     int dayNumber = 1;
-    int currentOffset = 0;
 
     for (final dayChunks in dailyGroups) {
+      // Offsets point into the original content (used to fetch the passage).
+      final startOffset = dayChunks.first.startIndex;
+      final endOffset = dayChunks.last.endIndex;
       final combinedContent =
-          dayChunks.map((c) => c.content).join('\n\n');
-
-      final startOffset = currentOffset;
-      final endOffset = currentOffset + combinedContent.length;
-      currentOffset = endOffset + 2;
+          normalizeLineEndings(content.substring(startOffset, endOffset));
 
       // Sub-chunks
       final subChunks = dayChunks.asMap().entries.map((entry) {
         return SubChunk(
-          id: '${const Uuid().v4()}',
+          id: const Uuid().v4(),
           content: entry.value.content,
           type: _getChunkType(entry.value.content),
-          wordCount: entry.value.content.split(' ').length,
+          wordCount: countWords(entry.value.content),
         );
       }).toList();
 
@@ -111,7 +108,8 @@ class SmartChunkerService {
     return 'Day $dayNumber';
   }
 
-  // Split content by natural breaks (chapters, sections, paragraphs)
+  // Split content by natural breaks (chapters, sections, paragraphs).
+  // Every chunk keeps its real offsets into [content].
   List<_TextChunk> _splitByNaturalBreaks(String content) {
     final chapterPatterns = [
       RegExp(r'Chapter \d+', caseSensitive: false),
@@ -125,14 +123,12 @@ class SmartChunkerService {
       if (matches.length > 3) {
         final chunks = <_TextChunk>[];
         for (int i = 0; i < matches.length; i++) {
-          final start = matches[i].start;
+          // Text before the first heading (title page, preface, intro) is
+          // read together with the first chapter rather than dropped.
+          final start = i == 0 ? 0 : matches[i].start;
           final end =
               i < matches.length - 1 ? matches[i + 1].start : content.length;
-          final chunkContent = content.substring(start, end).trim();
-          if (chunkContent.isNotEmpty) {
-            chunks.add(_TextChunk(
-                content: chunkContent, startIndex: start, endIndex: end));
-          }
+          _addChunk(chunks, content, start, end);
         }
         return chunks;
       }
@@ -141,58 +137,48 @@ class SmartChunkerService {
     return _splitIntoParagraphChunks(content);
   }
 
-  List<_TextChunk> _splitIntoParagraphChunks(String content) {
-    final chunks = <_TextChunk>[];
-    final paragraphs =
-        content.split('\n\n').where((p) => p.trim().isNotEmpty).toList();
+  void _addChunk(List<_TextChunk> chunks, String content, int start, int end) {
+    final range = trimRange(content, start, end);
+    if (range == null) return;
+    chunks.add(_TextChunk(
+      content: normalizeLineEndings(range.of(content)),
+      startIndex: range.start,
+      endIndex: range.end,
+    ));
+  }
 
+  /// Groups paragraphs into ~1000-word chunks.
+  List<_TextChunk> _splitIntoParagraphChunks(String content) {
     const wordsPerChunk = 1000;
-    final buffer = StringBuffer();
-    int startIndex = 0;
+    final chunks = <_TextChunk>[];
+    final paragraphs = splitParagraphs(content);
+
+    int? groupStart;
+    int groupEnd = 0;
     int wordCount = 0;
 
-    for (int pi = 0; pi < paragraphs.length; pi++) {
-      final para = paragraphs[pi];
-      final paraWords = para.split(' ').length;
-      final paraStart = content.indexOf(para, startIndex);
-
-      if (wordCount + paraWords > wordsPerChunk && buffer.isNotEmpty) {
-        chunks.add(_TextChunk(
-          content: buffer.toString().trim(),
-          startIndex: startIndex,
-          endIndex: paraStart,
-        ));
-        buffer.clear();
+    for (final para in paragraphs) {
+      final paraWords = countWords(para.of(content));
+      if (groupStart != null && wordCount + paraWords > wordsPerChunk) {
+        _addChunk(chunks, content, groupStart, groupEnd);
+        groupStart = null;
         wordCount = 0;
-        startIndex = paraStart;
       }
-
-      buffer.writeln(para);
+      groupStart ??= para.start;
+      groupEnd = para.end;
       wordCount += paraWords;
     }
+    if (groupStart != null) _addChunk(chunks, content, groupStart, groupEnd);
 
-    if (buffer.isNotEmpty) {
-      chunks.add(_TextChunk(
-        content: buffer.toString().trim(),
-        startIndex: startIndex,
-        endIndex: content.length,
-      ));
-    }
-
-    return chunks.isNotEmpty
-        ? chunks
-        : [
-            _TextChunk(
-                content: content, startIndex: 0, endIndex: content.length)
-          ];
+    return chunks;
   }
 
   ChunkType _getChunkType(String content) {
-    if (RegExp(r'Chapter \d+').hasMatch(content) &&
-        content.split(' ').length > 500) {
+    final words = countWords(content);
+    if (RegExp(r'Chapter \d+').hasMatch(content) && words > 500) {
       return ChunkType.chapter;
     }
-    if (content.split(' ').length > 500) return ChunkType.section;
+    if (words > 500) return ChunkType.section;
     return ChunkType.paragraph;
   }
 

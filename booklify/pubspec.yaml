@@ -70,6 +70,9 @@ dev_dependencies:
   # Linting
   flutter_lints: ^6.0.0
 
+  # Testing (runs SQLite on the desktop for DatabaseService tests)
+  sqflite_common_ffi: ^2.4.0
+
 flutter:
   generate: true
   uses-material-design: true

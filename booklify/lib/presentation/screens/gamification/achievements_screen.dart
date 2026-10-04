@@ -1,30 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../data/models/achievement.dart';
-import '../../providers/auth_provider.dart';
+import '../../providers/user_stats_provider.dart';
 
-// Providers for achievements
-final _allAchievementsProvider = FutureProvider<List<Achievement>>((ref) async {
-  final db = ref.read(databaseServiceProvider);
-  return await db.getAchievements();
-});
-
-final _userAchievementsProvider =
-    FutureProvider<List<Achievement>>((ref) async {
-  final user = ref.watch(authUserProvider);
-  if (user == null) return [];
-  final db = ref.read(databaseServiceProvider);
-  return await db.getUserAchievements(user.id);
-});
-
+/// Every reading achievement, earned or not. Driven by [userStatsProvider],
+/// which reading sessions and finished books update.
 class AchievementsScreen extends ConsumerWidget {
   const AchievementsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final allAsync = ref.watch(_allAchievementsProvider);
-    final unlockedAsync = ref.watch(_userAchievementsProvider);
+    final statsAsync = ref.watch(userStatsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -34,53 +20,39 @@ class AchievementsScreen extends ConsumerWidget {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
-      body: allAsync.when(
-        data: (all) {
-          return unlockedAsync.when(
-            data: (unlocked) {
-              final unlockedIds = unlocked.map((a) => a.id).toSet();
-              final unlockedCount = unlockedIds.length;
+      body: statsAsync.when(
+        data: (stats) {
+          final earned = stats.earnedAchievementIds.toSet();
+          final unlockedCount =
+              kAllAchievements.where((a) => earned.contains(a.id)).length;
 
-              return CustomScrollView(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: _buildHeader(context, unlockedCount, all.length),
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _buildHeader(unlockedCount, kAllAchievements.length),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.72,
                   ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 0.85,
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final achievement = all[index];
-                          final isUnlocked =
-                              unlockedIds.contains(achievement.id);
-                          final unlockedData = isUnlocked
-                              ? unlocked.firstWhere(
-                                  (a) => a.id == achievement.id)
-                              : null;
-                          return _AchievementCard(
-                            achievement: achievement,
-                            isUnlocked: isUnlocked,
-                            unlockedAt: unlockedData?.unlockedAt,
-                          );
-                        },
-                        childCount: all.length,
-                      ),
-                    ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final achievement = kAllAchievements[index];
+                      return _AchievementCard(
+                        achievement: achievement,
+                        isUnlocked: earned.contains(achievement.id),
+                      );
+                    },
+                    childCount: kAllAchievements.length,
                   ),
-                ],
-              );
-            },
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
+                ),
+              ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -89,8 +61,7 @@ class AchievementsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeader(
-      BuildContext context, int unlocked, int total) {
+  Widget _buildHeader(int unlocked, int total) {
     final progress = total > 0 ? unlocked / total : 0.0;
 
     return Padding(
@@ -100,14 +71,14 @@ class AchievementsScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.xpGold.withOpacity(0.8),
+              AppColors.xpGold.withValues(alpha: 0.8),
               AppColors.secondary,
             ],
           ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: AppColors.xpGold.withOpacity(0.3),
+              color: AppColors.xpGold.withValues(alpha: 0.3),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -120,23 +91,24 @@ class AchievementsScreen extends ConsumerWidget {
               children: [
                 const Icon(Icons.emoji_events, color: Colors.white, size: 32),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$unlocked / $total',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$unlocked / $total',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const Text(
-                      'Achievements Unlocked',
-                      style:
-                          TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                  ],
+                      const Text(
+                        'Achievements Unlocked',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -145,9 +117,8 @@ class AchievementsScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: progress,
-                backgroundColor: Colors.white.withOpacity(0.3),
-                valueColor:
-                    const AlwaysStoppedAnimation<Color>(Colors.white),
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                 minHeight: 8,
               ),
             ),
@@ -166,32 +137,32 @@ class AchievementsScreen extends ConsumerWidget {
 // ─── Achievement Card ─────────────────────────────────────────────────────────
 
 class _AchievementCard extends StatelessWidget {
-  final Achievement achievement;
+  final AchievementDef achievement;
   final bool isUnlocked;
-  final DateTime? unlockedAt;
 
   const _AchievementCard({
     required this.achievement,
     required this.isUnlocked,
-    this.unlockedAt,
   });
 
   @override
   Widget build(BuildContext context) {
+    final color = _categoryColor();
     return GestureDetector(
       onTap: () => _showDetails(context),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: isUnlocked ? Colors.white : Colors.white.withOpacity(0.5),
+          color:
+              isUnlocked ? Colors.white : Colors.white.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(16),
           border: isUnlocked
-              ? Border.all(color: _categoryColor().withOpacity(0.4), width: 2)
+              ? Border.all(color: color.withValues(alpha: 0.4), width: 2)
               : Border.all(color: Colors.grey[200]!, width: 1),
           boxShadow: isUnlocked
               ? [
                   BoxShadow(
-                    color: _categoryColor().withOpacity(0.2),
+                    color: color.withValues(alpha: 0.2),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -203,32 +174,14 @@ class _AchievementCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Icon circle
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isUnlocked
-                      ? _categoryColor().withOpacity(0.15)
-                      : Colors.grey[100],
-                ),
-                child: Icon(
-                  _categoryIcon(),
-                  size: 30,
-                  color: isUnlocked ? _categoryColor() : Colors.grey[400],
-                ),
-              ),
+              _badge(60, 28),
               const SizedBox(height: 12),
-
               Text(
                 achievement.title,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
-                  color: isUnlocked
-                      ? AppColors.textPrimary
-                      : Colors.grey[500],
+                  color: isUnlocked ? AppColors.textPrimary : Colors.grey[500],
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 1,
@@ -246,19 +199,17 @@ class _AchievementCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 10),
-
-              // XP badge
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: isUnlocked
-                      ? AppColors.xpGold.withOpacity(0.15)
+                      ? AppColors.xpGold.withValues(alpha: 0.15)
                       : Colors.grey[100],
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '+${achievement.xpReward ?? 0} XP',
+                  '+${achievement.xpReward} XP',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -266,20 +217,15 @@ class _AchievementCard extends StatelessWidget {
                   ),
                 ),
               ),
-
-              if (isUnlocked && unlockedAt != null) ...[
-                const SizedBox(height: 6),
+              const SizedBox(height: 6),
+              if (isUnlocked)
                 Text(
                   '✓ Unlocked',
                   style: TextStyle(
-                      fontSize: 10,
-                      color: _categoryColor(),
-                      fontWeight: FontWeight.w600),
-                ),
-              ] else if (!isUnlocked) ...[
-                const SizedBox(height: 6),
+                      fontSize: 10, color: color, fontWeight: FontWeight.w600),
+                )
+              else
                 Icon(Icons.lock_outline, size: 14, color: Colors.grey[400]),
-              ],
             ],
           ),
         ),
@@ -287,33 +233,37 @@ class _AchievementCard extends StatelessWidget {
     );
   }
 
-  Color _categoryColor() {
-    switch (achievement.category) {
-      case AchievementCategory.streak:
-        return AppColors.streakFire;
-      case AchievementCategory.readingSpeed:
-        return Colors.blue;
-      case AchievementCategory.comprehension:
-        return Colors.purple;
-      case AchievementCategory.social:
-        return Colors.teal;
-      case AchievementCategory.level:
-        return AppColors.xpGold;
-    }
+  /// The achievement's emoji in a tinted circle (greyed out while locked).
+  Widget _badge(double size, double emojiSize) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isUnlocked
+            ? _categoryColor().withValues(alpha: 0.15)
+            : Colors.grey[100],
+      ),
+      child: Opacity(
+        opacity: isUnlocked ? 1 : 0.35,
+        child: Text(achievement.emoji, style: TextStyle(fontSize: emojiSize)),
+      ),
+    );
   }
 
-  IconData _categoryIcon() {
+  Color _categoryColor() {
     switch (achievement.category) {
-      case AchievementCategory.streak:
-        return Icons.local_fire_department;
-      case AchievementCategory.readingSpeed:
-        return Icons.speed;
-      case AchievementCategory.comprehension:
-        return Icons.psychology;
-      case AchievementCategory.social:
-        return Icons.people;
-      case AchievementCategory.level:
-        return Icons.stars;
+      case 'streak':
+        return AppColors.streakFire;
+      case 'sessions':
+        return Colors.blue;
+      case 'books':
+        return Colors.teal;
+      case 'level':
+      case 'xp':
+      default:
+        return AppColors.xpGold;
     }
   }
 
@@ -321,30 +271,15 @@ class _AchievementCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isUnlocked
-                    ? _categoryColor().withOpacity(0.15)
-                    : Colors.grey[100],
-              ),
-              child: Icon(
-                _categoryIcon(),
-                size: 40,
-                color: isUnlocked ? _categoryColor() : Colors.grey[400],
-              ),
-            ),
+            _badge(80, 38),
             const SizedBox(height: 16),
             Text(achievement.title,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 18)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 8),
             Text(
               achievement.description,
@@ -355,7 +290,7 @@ class _AchievementCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.xpGold.withOpacity(0.1),
+                color: AppColors.xpGold.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -364,28 +299,21 @@ class _AchievementCard extends StatelessWidget {
                   const Icon(Icons.bolt, color: AppColors.xpGold),
                   const SizedBox(width: 8),
                   Text(
-                    '+${achievement.xpReward ?? 0} XP Reward',
+                    '+${achievement.xpReward} XP Reward',
                     style: const TextStyle(
-                        color: AppColors.xpGold,
-                        fontWeight: FontWeight.bold),
+                        color: AppColors.xpGold, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
             ),
-            if (isUnlocked && unlockedAt != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Unlocked on ${_formatDate(unlockedAt!)}',
-                style: TextStyle(color: Colors.grey[500], fontSize: 12),
-              ),
-            ] else if (!isUnlocked) ...[
-              const SizedBox(height: 12),
-              const Text(
-                'Keep reading to unlock this achievement!',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ],
+            const SizedBox(height: 12),
+            Text(
+              isUnlocked
+                  ? 'Unlocked — reward added to your XP'
+                  : 'Keep reading to unlock this achievement!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
           ],
         ),
         actions: [
@@ -396,9 +324,5 @@ class _AchievementCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 }

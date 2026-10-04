@@ -5,7 +5,8 @@ import { Dashboard } from './Dashboard';
 import * as storage from '../lib/storage';
 
 // Mock the storage module
-vi.mock('../lib/storage', () => ({
+vi.mock('../lib/storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/storage')>()),
   getStoredBook: vi.fn(),
   getProgress: vi.fn(),
   updateProgress: vi.fn(),
@@ -235,12 +236,15 @@ describe('Dashboard', () => {
       expect(screen.getByText(/Discuss, quiz, and deepen/)).toBeInTheDocument();
     });
 
-    it('should show Log Reading Session card', () => {
+    it('should show View Reading Plan card that navigates to plan', () => {
       const router = createRouter(<Dashboard />);
       render(<RouterProvider router={router} />);
 
-      expect(screen.getByText('Log Reading Session')).toBeInTheDocument();
-      expect(screen.getByText(/Track your progress and earn XP/)).toBeInTheDocument();
+      expect(screen.getByText('View Reading Plan')).toBeInTheDocument();
+      expect(screen.getByText(/See your complete daily reading schedule/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText('View Reading Plan'));
+      expect(router.state.location.pathname).toBe('/plan');
     });
   });
 

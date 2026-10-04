@@ -1,4 +1,4 @@
-b# Environment variables
+# Environment variables
 .env
 .env.local
 .env.*.local
@@ -19,3 +19,7 @@ node_modules
 node_modules
 node_modules
 booklify/assets/.env
+
+# Playwright
+test-results/
+playwright-report/

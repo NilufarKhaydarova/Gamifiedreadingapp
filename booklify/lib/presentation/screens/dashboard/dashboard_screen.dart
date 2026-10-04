@@ -16,9 +16,9 @@ class DashboardScreen extends ConsumerWidget {
     final progressAsync = ref.watch(progressProvider);
     final book = ref.watch(currentBookProvider);
     final challengeAsync = ref.watch(dailyChallengeProvider);
-    final _displayName = user?.displayName ?? '';
+    final displayName = user?.displayName ?? '';
     final displayInitial =
-        _displayName.isEmpty ? 'R' : _displayName.substring(0, 1).toUpperCase();
+        displayName.isEmpty ? 'R' : displayName.substring(0, 1).toUpperCase();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -149,7 +149,7 @@ class DashboardScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.3),
+            color: AppColors.primary.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -183,7 +183,7 @@ class DashboardScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text('Done!',
@@ -199,14 +199,14 @@ class DashboardScreen extends ConsumerWidget {
                 ? 'Great job! You read today!'
                 : 'Read for $target minutes today',
             style: TextStyle(
-                color: Colors.white.withOpacity(0.9), fontSize: 14),
+                color: Colors.white.withValues(alpha: 0.9), fontSize: 14),
           ),
           const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.white.withOpacity(0.3),
+              backgroundColor: Colors.white.withValues(alpha: 0.3),
               valueColor:
                   const AlwaysStoppedAnimation<Color>(Colors.white),
               minHeight: 8,
@@ -216,7 +216,7 @@ class DashboardScreen extends ConsumerWidget {
           Text(
             '$completed / $target min',
             style: TextStyle(
-                color: Colors.white.withOpacity(0.8), fontSize: 12),
+                color: Colors.white.withValues(alpha: 0.8), fontSize: 12),
           ),
         ],
       ),
@@ -232,7 +232,7 @@ class DashboardScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
           ),
         ],
@@ -274,7 +274,7 @@ class DashboardScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
           ),
         ],
@@ -388,10 +388,10 @@ class DashboardScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.xpGold.withOpacity(0.15),
+        color: AppColors.xpGold.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
         border:
-            Border.all(color: AppColors.xpGold.withOpacity(0.4)),
+            Border.all(color: AppColors.xpGold.withValues(alpha: 0.4)),
       ),
       child: Column(
         children: [
@@ -406,7 +406,7 @@ class DashboardScreen extends ConsumerWidget {
           Text(
             '${progress.xp} XP',
             style: TextStyle(
-                color: AppColors.xpGold.withOpacity(0.8), fontSize: 11),
+                color: AppColors.xpGold.withValues(alpha: 0.8), fontSize: 11),
           ),
         ],
       ),
@@ -457,9 +457,9 @@ class DashboardScreen extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Column(
           children: [
@@ -476,7 +476,7 @@ class DashboardScreen extends ConsumerWidget {
             Text(
               label,
               style: TextStyle(
-                  color: color.withOpacity(0.8), fontSize: 11),
+                  color: color.withValues(alpha: 0.8), fontSize: 11),
               textAlign: TextAlign.center,
             ),
           ],

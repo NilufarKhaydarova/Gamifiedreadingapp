@@ -136,7 +136,9 @@ class _RadarPainter extends CustomPainter {
     }
 
     final path = Path()..moveTo(pts[0].dx, pts[0].dy);
-    for (int i = 1; i < _n; i++) path.lineTo(pts[i].dx, pts[i].dy);
+    for (int i = 1; i < _n; i++) {
+      path.lineTo(pts[i].dx, pts[i].dy);
+    }
     path.close();
 
     // fill
@@ -1482,7 +1484,9 @@ class _WpmChartPainter extends CustomPainter {
     }
 
     fillPath.moveTo(points.first.dx, size.height);
-    for (final p in points) fillPath.lineTo(p.dx, p.dy);
+    for (final p in points) {
+      fillPath.lineTo(p.dx, p.dy);
+    }
     fillPath.lineTo(points.last.dx, size.height);
     fillPath.close();
 

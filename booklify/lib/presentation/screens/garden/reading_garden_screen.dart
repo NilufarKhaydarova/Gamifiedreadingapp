@@ -96,7 +96,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.eco, size: 80, color: Colors.white.withOpacity(0.7)),
+            Icon(Icons.eco, size: 80, color: Colors.white.withValues(alpha: 0.7)),
             const SizedBox(height: 24),
             Text(
               'Your garden is waiting',
@@ -153,7 +153,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
@@ -189,11 +189,11 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
         margin: const EdgeInsets.all(20),
         height: 400,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -261,9 +261,9 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
+        color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -300,7 +300,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -356,7 +356,7 @@ class _ReadingGardenScreenState extends ConsumerState<ReadingGardenScreen>
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
               minimumSize: const Size(double.infinity, 48),
-              disabledBackgroundColor: Colors.green.withOpacity(0.4),
+              disabledBackgroundColor: Colors.green.withValues(alpha: 0.4),
             ),
           ),
         ],

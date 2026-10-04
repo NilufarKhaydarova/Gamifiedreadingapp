@@ -137,7 +137,7 @@ export function UploadBook() {
                 <p className="font-medium text-gray-700 mb-1">
                   Click to upload a text file
                 </p>
-                <p className="text-sm text-gray-500">you can upload .pdf, .epub, .txt</p>
+                <p className="text-sm text-gray-500">Plain text (.txt) files</p>
               </label>
             </div>
 

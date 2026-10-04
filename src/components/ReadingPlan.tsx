@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getStoredBook, getProgress } from '../lib/storage';
+import { getStoredBook, getProgress, localDateISO } from '../lib/storage';
 import { Calendar, CheckCircle2, Circle, Book } from 'lucide-react';
 
 export function ReadingPlan() {
@@ -21,7 +21,7 @@ export function ReadingPlan() {
     );
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const todayCompleted = progress.completedDays.includes(localDateISO());
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -62,11 +62,8 @@ export function ReadingPlan() {
         <div className="space-y-3">
           {progress.dailyPages.map((day: any, index: number) => {
             const dayNumber = index + 1;
-            const isCompleted = progress.completedDays.some((d: string) => {
-              const date = new Date(book.uploadDate);
-              date.setDate(date.getDate() + index);
-              return d === date.toISOString().split('T')[0];
-            });
+            // Days are completed in order, so day N is done once N days are logged.
+            const isCompleted = index < progress.completedDays.length;
             const isCurrent = progress.currentDay === dayNumber;
             const isPast = dayNumber < progress.currentDay;
             
@@ -107,9 +104,9 @@ export function ReadingPlan() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-bold">Day {dayNumber}</span>
-                      {isCurrent && (
+                      {isCurrent && !isCompleted && (
                         <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">
-                          Today
+                          {todayCompleted ? 'Up next' : 'Today'}
                         </span>
                       )}
                       <span className={`text-xs px-2 py-0.5 rounded-full ${

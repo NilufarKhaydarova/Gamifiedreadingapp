@@ -17,7 +17,7 @@ const MODEL = 'claude-sonnet-4-5';
 const MAX_TOKENS = 800;
 
 function anthropicKey(): string | undefined {
-  return (import.meta as any).env?.VITE_ANTHROPIC_API_KEY;
+  return import.meta.env.VITE_ANTHROPIC_API_KEY;
 }
 
 // ── System prompt builder ─────────────────────────────────────────────────────
