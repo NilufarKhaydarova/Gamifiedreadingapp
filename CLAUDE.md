@@ -162,11 +162,14 @@ Go through `AiProviderService` — it handles fallback chain and RAG context inj
 
 ```bash
 # Web app
-npm test                # Run tests (if configured)
+npm test                # Vitest unit + component tests (jsdom)
+npm run test:e2e        # Playwright browser journey (starts dev server)
 
 # Flutter app
-flutter test            # Run unit/widget tests
+flutter test            # Unit, provider, SQLite (via sqflite_common_ffi) and widget tests
 ```
+
+See `TEST_PLAN.md` for what is covered and the known-bug tests (`BUG: ...`).
 
 ## Troubleshooting
 

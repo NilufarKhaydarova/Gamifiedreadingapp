@@ -8,15 +8,15 @@ const OPENAI_URL = 'https://api.openai.com/v1/embeddings';
 export type EmbeddingProvider = 'voyage' | 'openai';
 
 function voyageKey(): string | undefined {
-  return (import.meta as any).env?.VITE_VOYAGE_API_KEY;
+  return import.meta.env.VITE_VOYAGE_API_KEY;
 }
 function openaiKey(): string | undefined {
-  return (import.meta as any).env?.VITE_OPENAI_API_KEY;
+  return import.meta.env.VITE_OPENAI_API_KEY;
 }
 
 /** Resolve which provider to use at runtime. */
 export function resolveProvider(): EmbeddingProvider {
-  const pref = ((import.meta as any).env?.VITE_RAG_EMBEDDING_PROVIDER ?? '').toLowerCase();
+  const pref = (import.meta.env.VITE_RAG_EMBEDDING_PROVIDER ?? '').toLowerCase();
   if (pref === 'openai') return 'openai';
   if (pref === 'voyage' && voyageKey()) return 'voyage';
   if (voyageKey()) return 'voyage';
