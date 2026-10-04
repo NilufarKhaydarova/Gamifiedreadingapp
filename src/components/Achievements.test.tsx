@@ -26,21 +26,32 @@ describe('Achievements', () => {
   it('unlocks First Steps and Week Warrior after a 7-day streak', () => {
     seedBook({}, 30, { completedDays: lastNDays(7), currentDay: 8 });
     renderAt(<Achievements />, '/achievements');
-    // First Steps + Week Warrior (7/30 = 26.7% → Quarter Master too)
-    expect(screen.getByText('3 of 8 unlocked')).toBeInTheDocument();
+    // 7 of 30 days read = 23%, so no percentage achievement yet
+    expect(screen.getByText('2 of 8 unlocked')).toBeInTheDocument();
   });
 
   it('unlocks percentage achievements as the reader advances', () => {
-    seedBook({}, 10, { completedDays: [isoDay(-30)], currentDay: 8 });
+    const oldDays = Array.from({ length: 8 }, (_, i) => isoDay(-30 - i));
+    seedBook({}, 10, { completedDays: oldDays, currentDay: 9 });
     renderAt(<Achievements />, '/achievements');
-    // First Steps + 25% + 50% + 75%
+    // 8 of 10 days read: First Steps + 25% + 50% + 75%
     expect(screen.getByText('4 of 8 unlocked')).toBeInTheDocument();
   });
 
-  it.fails('BUG: "Book Conqueror" unlocks before the final day is read', () => {
+  it('"Book Conqueror" stays locked until the final day is read', () => {
     // 10-day plan, days 1–9 completed → currentDay = 10, but day 10 not read yet.
     seedBook({}, 10, { completedDays: lastNDays(9).map((_, i) => isoDay(-40 - i)), currentDay: 10 });
     renderAt(<Achievements />, '/achievements');
     expect(screen.getByText('Book Conqueror')).not.toHaveTextContent('Unlocked');
+  });
+});
+
+describe('Achievements: finishing the book', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('unlocks "Book Conqueror" once every day is read', () => {
+    seedBook({}, 10, { completedDays: lastNDays(10).map((_, i) => isoDay(-40 - i)), currentDay: 10 });
+    renderAt(<Achievements />, '/achievements');
+    expect(screen.getByText('Book Conqueror')).toHaveTextContent('Unlocked');
   });
 });

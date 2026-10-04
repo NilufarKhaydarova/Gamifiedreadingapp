@@ -104,10 +104,11 @@ describe('UploadBook', () => {
     expect(screen.getByText('Upload Your Book')).toBeInTheDocument();
   });
 
-  it.fails('BUG: page says .pdf and .epub are supported but the picker only accepts .txt', () => {
+  it('only advertises the file types the picker accepts (.txt)', () => {
     const { container } = renderAt(<UploadBook />, '/upload');
-    expect(screen.getByText(/\.pdf, \.epub, \.txt/)).toBeInTheDocument();
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input.accept).toContain('.pdf');
+    expect(input.accept).toBe('.txt');
+    expect(screen.getByText('Plain text (.txt) files')).toBeInTheDocument();
+    expect(screen.queryByText(/\.pdf|\.epub/)).not.toBeInTheDocument();
   });
 });

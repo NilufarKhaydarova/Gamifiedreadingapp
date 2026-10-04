@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getStoredBook, getProgress, updateProgress } from '../lib/storage';
+import { getStoredBook, getProgress, getDayText, saveAudioPosition } from '../lib/storage';
 import { Play, Pause, SkipBack, SkipForward, Volume2, Settings } from 'lucide-react';
 
 export function AudioPlayer() {
@@ -22,6 +22,7 @@ export function AudioPlayer() {
 
     if (storedProgress?.audioPosition) {
       setCurrentTime(storedProgress.audioPosition);
+      textPositionRef.current = storedProgress.audioPosition;
     }
 
     // Load available voices
@@ -43,82 +44,81 @@ export function AudioPlayer() {
 
   const getCurrentPageContent = () => {
     if (!book || !progress) return '';
-    
-    const currentDayData = progress.dailyPages[progress.currentDay - 1];
-    if (!currentDayData) return '';
+    const text = getDayText(book, progress.dailyPages[progress.currentDay - 1]);
+    return text || 'No content available for audio playback.';
+  };
 
-    // In a real implementation, you would extract the text for these specific pages
-    // For now, we'll use a portion of the content
-    return book.content || 'No content available for audio playback.';
+  /** Cancel speech without its end handler resetting the position. */
+  const cancelSpeech = () => {
+    utteranceRef.current = null;
+    window.speechSynthesis.cancel();
+  };
+
+  const moveTo = (position: number) => {
+    textPositionRef.current = position;
+    setCurrentTime(position);
+    saveAudioPosition(position);
+  };
+
+  /** Speak today's text starting at a character position. */
+  const startPlayback = (from: number, speed = rate) => {
+    const text = getCurrentPageContent();
+    const start = from > 0 && from < text.length ? from : 0;
+    cancelSpeech();
+
+    const utterance = new SpeechSynthesisUtterance(text.slice(start));
+    if (voice) utterance.voice = voice;
+    utterance.rate = speed;
+
+    utterance.onend = () => {
+      if (utteranceRef.current !== utterance) return; // replaced by skip / speed change
+      setIsPlaying(false);
+      moveTo(0); // finished — next play starts from the beginning
+    };
+    utterance.onpause = () => {
+      if (utteranceRef.current !== utterance) return;
+      setIsPlaying(false);
+    };
+    utterance.onboundary = (event) => {
+      const position = start + event.charIndex;
+      textPositionRef.current = position;
+      setCurrentTime(position);
+    };
+
+    utteranceRef.current = utterance;
+    textPositionRef.current = start;
+    window.speechSynthesis.speak(utterance);
+    setIsPlaying(true);
   };
 
   const handlePlayPause = () => {
     if (isPlaying) {
       window.speechSynthesis.pause();
       setIsPlaying(false);
-    } else {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      } else {
-        const text = getCurrentPageContent();
-        const utterance = new SpeechSynthesisUtterance(text);
-        
-        if (voice) {
-          utterance.voice = voice;
-        }
-        utterance.rate = rate;
-        
-        utterance.onend = () => {
-          setIsPlaying(false);
-          // Save position when finished
-          if (progress) {
-            updateProgress({ ...progress, audioPosition: 0 });
-          }
-        };
-
-        utterance.onpause = () => {
-          setIsPlaying(false);
-        };
-
-        utterance.onboundary = (event) => {
-          setCurrentTime(event.charIndex);
-          textPositionRef.current = event.charIndex;
-        };
-
-        utteranceRef.current = utterance;
-        window.speechSynthesis.speak(utterance);
-      }
+      saveAudioPosition(textPositionRef.current);
+    } else if (utteranceRef.current && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
       setIsPlaying(true);
-    }
-  };
-
-  const handleStop = () => {
-    window.speechSynthesis.cancel();
-    setIsPlaying(false);
-    setCurrentTime(0);
-    
-    if (progress) {
-      updateProgress({ ...progress, audioPosition: 0 });
+    } else {
+      startPlayback(textPositionRef.current);
     }
   };
 
   const handleSkip = (seconds: number) => {
-    // Skip forward/backward in speech
-    const newPosition = Math.max(0, textPositionRef.current + (seconds * 10));
-    textPositionRef.current = newPosition;
-    setCurrentTime(newPosition);
-    
-    if (progress) {
-      updateProgress({ ...progress, audioPosition: newPosition });
+    // ~10 characters per second of speech
+    const length = getCurrentPageContent().length;
+    const newPosition = Math.min(length, Math.max(0, textPositionRef.current + seconds * 10));
+    moveTo(newPosition);
+    if (isPlaying) {
+      startPlayback(newPosition);
+    } else {
+      cancelSpeech(); // drop any paused speech so Play starts from the new spot
     }
   };
 
   const handleRateChange = (newRate: number) => {
     setRate(newRate);
-    if (isPlaying) {
-      window.speechSynthesis.cancel();
-      setIsPlaying(false);
-    }
+    if (isPlaying) startPlayback(textPositionRef.current, newRate);
   };
 
   if (!book || !progress) {
@@ -244,10 +244,10 @@ export function AudioPlayer() {
         <h3 className="font-bold text-lg mb-4">Text Content</h3>
         <div className="prose max-w-none">
           <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-            {content.substring(0, 500)}...
+            {content.length > 500 ? `${content.substring(0, 500)}…` : content}
           </p>
           <p className="text-sm text-gray-500 mt-4 italic">
-            Full text will play during audio playback
+            Plays today's pages ({currentDayData?.start}–{currentDayData?.end})
           </p>
         </div>
       </div>

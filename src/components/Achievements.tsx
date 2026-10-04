@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getProgress } from '../lib/storage';
+import { getProgress, calculateStreak, getCompletionPercent } from '../lib/storage';
 import { Trophy, Flame, BookOpen, Target, Zap, Star, Award, Medal } from 'lucide-react';
 
 interface Achievement {
@@ -23,7 +23,7 @@ export function Achievements() {
     if (storedProgress) {
       const completedDays = storedProgress.completedDays.length;
       const streak = calculateStreak(storedProgress.completedDays);
-      const progressPercent = (storedProgress.currentDay / storedProgress.totalDays) * 100;
+      const progressPercent = getCompletionPercent(storedProgress);
 
       const achievementsList: Achievement[] = [
         {
@@ -196,26 +196,4 @@ export function Achievements() {
       </div>
     </div>
   );
-}
-
-function calculateStreak(completedDays: string[]): number {
-  if (completedDays.length === 0) return 0;
-
-  const sortedDays = completedDays.sort().reverse();
-  let streak = 0;
-  let currentDate = new Date();
-
-  for (let i = 0; i < sortedDays.length; i++) {
-    const checkDate = new Date(currentDate);
-    checkDate.setDate(checkDate.getDate() - i);
-    const checkDateStr = checkDate.toISOString().split('T')[0];
-
-    if (sortedDays.includes(checkDateStr)) {
-      streak++;
-    } else {
-      break;
-    }
-  }
-
-  return streak;
 }

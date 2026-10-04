@@ -25,7 +25,9 @@ export function Onboarding() {
     navigate('/upload');
   };
 
-  const recommendations = formData.booksPerYear 
+  const hasBooksPerYear =
+    formData.booksPerYear !== undefined && !Number.isNaN(formData.booksPerYear);
+  const recommendations = hasBooksPerYear
     ? getBookRecommendations(formData as UserProfile)
     : [];
 
@@ -88,8 +90,13 @@ export function Onboarding() {
                 type="number"
                 min="0"
                 max="1000"
-                value={formData.booksPerYear || ''}
-                onChange={(e) => setFormData({ ...formData, booksPerYear: parseInt(e.target.value) })}
+                value={formData.booksPerYear ?? ''}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    booksPerYear: e.target.value === '' ? undefined : parseInt(e.target.value),
+                  })
+                }
                 placeholder="e.g., 12"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
@@ -97,7 +104,7 @@ export function Onboarding() {
 
             <button
               onClick={() => setStep(2)}
-              disabled={!formData.age || !formData.education || !formData.booksPerYear}
+              disabled={!formData.age || !formData.education || !hasBooksPerYear}
               className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Continue

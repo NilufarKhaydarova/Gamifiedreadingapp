@@ -176,13 +176,31 @@ void main() {
       expect(c.read(authProvider).errorMessage, contains('Invalid email or password'));
     });
 
-    test('BUG: clearError() does not clear the error message', () async {
+    test('clearError() clears the error message', () async {
       final c = await start();
       final n = c.read(authProvider.notifier);
       await n.signIn(email: 'nobody@t.dev', password: 'x');
       n.clearError();
       expect(c.read(authProvider).errorMessage, isNull);
-    }, skip: 'Known bug: AuthState.copyWith(errorMessage: null) keeps the old message');
+    });
+
+    test('error messages are shown without the "Exception:" prefix', () async {
+      final c = await start();
+      await c.read(authProvider.notifier).signIn(email: 'nobody@t.dev', password: 'x');
+      expect(c.read(authProvider).errorMessage, 'Invalid email or password.');
+    });
+
+    test('a successful sign-in after a failure clears the old error', () async {
+      final c = await start();
+      final email = '${const Uuid().v4()}@t.dev';
+      final n = c.read(authProvider.notifier);
+      await n.signUp(email: email, password: 'pw123456', displayName: 'Ann');
+      await n.signOut();
+      await n.signIn(email: email, password: 'wrong');
+      await n.signIn(email: email, password: 'pw123456');
+      expect(c.read(authStatusProvider), AuthStatus.authenticated);
+      expect(c.read(authProvider).errorMessage, isNull);
+    });
   });
 
   group('LocaleNotifier', () {

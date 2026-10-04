@@ -5,7 +5,8 @@ import { Dashboard } from './Dashboard';
 import * as storage from '../lib/storage';
 
 // Mock the storage module
-vi.mock('../lib/storage', () => ({
+vi.mock('../lib/storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/storage')>()),
   getStoredBook: vi.fn(),
   getProgress: vi.fn(),
   updateProgress: vi.fn(),

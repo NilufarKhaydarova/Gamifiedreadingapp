@@ -24,36 +24,76 @@ describe('AudioPlayer', () => {
     expect(screen.getByText(/Day 2 - Pages 11 to 20/)).toBeInTheDocument();
   });
 
+  // 10 pages, one word-marker per page: "P1 aaaa… P2 aaaa…"
+  const pagedBook = (pages = 10) =>
+    Array.from({ length: pages }, (_, i) => `P${i + 1} ${'a'.repeat(95)}`).join(' ');
+
   it('Play speaks the text, Pause pauses it', () => {
-    seedBook();
+    seedBook({ content: pagedBook() }, 1);
     const { container } = renderAt(<AudioPlayer />, '/audio');
     fireEvent.click(iconButton(container, 'play'));
     expect(synth.speak).toHaveBeenCalledTimes(1);
-    expect(synth.speak.mock.calls[0][0].text).toContain('Once upon a time');
+    expect(synth.speak.mock.calls[0][0].text).toContain('P1');
 
     fireEvent.click(iconButton(container, 'pause'));
     expect(synth.pause).toHaveBeenCalled();
   });
 
-  it('skip forward saves the audio position', () => {
-    seedBook();
-    const { container } = renderAt(<AudioPlayer />, '/audio');
-    fireEvent.click(iconButton(container, 'skip-forward'));
-    expect(getProgress()!.audioPosition).toBe(150);
-  });
-
-  it.fails("BUG: plays the whole book instead of only today's pages", () => {
-    seedBook({ content: 'DAY-ONE-TEXT '.repeat(50) + 'LAST-DAY-TEXT' }, 10);
+  it("plays only today's pages", () => {
+    seedBook({ content: pagedBook(), totalPages: 10 }, 5, { currentDay: 2 }); // day 2 = pages 3–4
     const { container } = renderAt(<AudioPlayer />, '/audio');
     fireEvent.click(iconButton(container, 'play'));
-    expect(synth.speak.mock.calls[0][0].text).not.toContain('LAST-DAY-TEXT');
+    const spoken: string = synth.speak.mock.calls[0][0].text;
+    expect(spoken.startsWith('P3')).toBe(true);
+    expect(spoken).toContain('P4');
+    expect(spoken).not.toContain('P2 ');
+    expect(spoken).not.toContain('P5');
   });
 
-  it.fails('BUG: skip / saved position does not change where playback starts', () => {
+  it('skip forward saves the position and Play starts from there', () => {
     seedBook({ content: 'START ' + 'x '.repeat(200) + 'LATER' }, 1);
     const { container } = renderAt(<AudioPlayer />, '/audio');
     fireEvent.click(iconButton(container, 'skip-forward'));
+    expect(getProgress()!.audioPosition).toBe(150);
+
+    fireEvent.click(iconButton(container, 'play'));
+    const spoken: string = synth.speak.mock.calls[0][0].text;
+    expect(spoken.startsWith('START')).toBe(false);
+    expect(spoken).toContain('LATER');
+  });
+
+  it('skip while playing restarts speech at the new position', () => {
+    seedBook({ content: 'START ' + 'x '.repeat(200) + 'LATER' }, 1);
+    const { container } = renderAt(<AudioPlayer />, '/audio');
+    fireEvent.click(iconButton(container, 'play'));
+    fireEvent.click(iconButton(container, 'skip-forward'));
+    expect(synth.speak).toHaveBeenCalledTimes(2);
+    expect(synth.speak.mock.calls[1][0].text.startsWith('START')).toBe(false);
+  });
+
+  it('skip back never goes below the start, skip forward never past the end', () => {
+    seedBook({ content: 'short text here' }, 1);
+    const { container } = renderAt(<AudioPlayer />, '/audio');
+    fireEvent.click(iconButton(container, 'skip-back'));
+    expect(getProgress()!.audioPosition).toBe(0);
+    fireEvent.click(iconButton(container, 'skip-forward'));
+    expect(getProgress()!.audioPosition).toBe('short text here'.length);
+  });
+
+  it('resumes from the saved position after reopening the page', () => {
+    seedBook({ content: 'START ' + 'x '.repeat(200) + 'LATER' }, 1, { audioPosition: 300 });
+    const { container } = renderAt(<AudioPlayer />, '/audio');
     fireEvent.click(iconButton(container, 'play'));
     expect(synth.speak.mock.calls[0][0].text.startsWith('START')).toBe(false);
+  });
+
+  it('changing speed while playing keeps playing at the new rate', () => {
+    seedBook({ content: pagedBook() }, 1);
+    const { container } = renderAt(<AudioPlayer />, '/audio');
+    fireEvent.click(iconButton(container, 'play'));
+    fireEvent.click(iconButton(container, 'settings'));
+    fireEvent.click(screen.getByRole('button', { name: '1.5x' }));
+    expect(synth.speak).toHaveBeenCalledTimes(2);
+    expect(synth.speak.mock.calls[1][0].rate).toBe(1.5);
   });
 });

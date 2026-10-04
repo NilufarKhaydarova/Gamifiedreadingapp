@@ -8,6 +8,7 @@ import {
   initializeProgress,
   getProgress,
   updateProgress,
+  localDateISO,
   type Book,
   type Progress,
 } from '../lib/storage';
@@ -37,7 +38,7 @@ export function renderAt(element: ReactElement, path = '/') {
 export const isoDay = (offsetDays = 0) => {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().split('T')[0];
+  return localDateISO(d);
 };
 
 export function seedProfile() {

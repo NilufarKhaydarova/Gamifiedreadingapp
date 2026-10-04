@@ -63,10 +63,19 @@ describe('Onboarding', () => {
     expect(screen.getByText('Welcome to Booklify!')).toBeInTheDocument();
   });
 
-  it.fails('BUG: a user who reads 0 books per year cannot continue', () => {
+  it('accepts 0 books per year and shows beginner recommendations', () => {
     renderAt(<Onboarding />, '/onboarding');
     fillStep1({ books: '0' });
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText(/The Alchemist/)).toBeInTheDocument();
+  });
+
+  it('clearing books per year disables Continue again', () => {
+    renderAt(<Onboarding />, '/onboarding');
+    fillStep1();
+    fireEvent.change(screen.getByPlaceholderText('e.g., 12'), { target: { value: '' } });
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+    expect(screen.getByPlaceholderText('e.g., 12')).toHaveValue(null);
   });
 });
 

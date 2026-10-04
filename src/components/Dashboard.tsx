@@ -1,7 +1,16 @@
 import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { BookOpen, Calendar, Flame, Target, CheckCircle2, Upload, MessageCircle, Zap } from 'lucide-react';
-import { getStoredBook, getProgress, updateProgress, addXP, getXPForNextLevel } from '../lib/storage';
+import {
+  getStoredBook,
+  getProgress,
+  updateProgress,
+  addXP,
+  getXPForNextLevel,
+  calculateStreak,
+  getCompletionPercent,
+  localDateISO,
+} from '../lib/storage';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -17,7 +26,9 @@ export function Dashboard() {
 
   const handleMarkComplete = () => {
     if (progress && book) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = localDateISO();
+      if (progress.completedDays.includes(today)) return;
+      if (progress.completedDays.length >= progress.totalDays) return;
       const newProgress = {
         ...progress,
         completedDays: [...progress.completedDays, today],
@@ -25,10 +36,9 @@ export function Dashboard() {
       };
       updateProgress(newProgress);
       
-      // Award XP for completing a day
+      // Award XP for completing a day, then re-read so XP/level show immediately
       addXP(50);
-      
-      setProgress(newProgress);
+      setProgress(getProgress());
     }
   };
 
@@ -55,9 +65,18 @@ export function Dashboard() {
     );
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateISO();
   const todayCompleted = progress?.completedDays.includes(today);
-  const progressPercentage = progress ? (progress.currentDay / progress.totalDays) * 100 : 0;
+  const bookFinished = progress ? progress.completedDays.length >= progress.totalDays : false;
+  const progressPercentage = progress ? getCompletionPercent(progress) : 0;
+  // After finishing today, keep showing the day just read rather than tomorrow's.
+  const todayIndex = progress
+    ? Math.min(
+        todayCompleted ? progress.completedDays.length - 1 : progress.completedDays.length,
+        progress.totalDays - 1,
+      )
+    : 0;
+  const todayPlan = progress?.dailyPages[todayIndex];
   const streak = progress ? calculateStreak(progress.completedDays) : 0;
   const xpForNextLevel = progress ? getXPForNextLevel(progress.level) : 100;
   const xpProgress = progress ? (progress.xp / xpForNextLevel) * 100 : 0;
@@ -111,7 +130,7 @@ export function Dashboard() {
             </div>
             <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-3 shadow-lg">
               <p className="text-sm text-indigo-200">Day</p>
-              <p className="text-3xl font-bold">{progress?.currentDay || 1}/{progress?.totalDays || 1}</p>
+              <p className="text-3xl font-bold">{todayIndex + 1}/{progress?.totalDays || 1}</p>
             </div>
           </div>
 
@@ -188,24 +207,30 @@ export function Dashboard() {
             <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
               <p className="text-xs text-purple-600 font-medium mb-1">TODAY'S THEME</p>
               <p className="font-bold text-purple-900 mb-2">
-                {progress.dailyPages[progress.currentDay - 1]?.theme || 'Reading Session'}
+                {todayPlan?.theme || 'Reading Session'}
               </p>
               <p className="text-sm text-gray-700">
-                {progress.dailyPages[progress.currentDay - 1]?.summary || 'Continue your reading journey today.'}
+                {todayPlan?.summary || 'Continue your reading journey today.'}
               </p>
             </div>
 
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-sm text-gray-600 mb-1">Today's Pages</p>
               <p className="text-lg font-bold">
-                Pages {progress.dailyPages[progress.currentDay - 1]?.start || 1} - {progress.dailyPages[progress.currentDay - 1]?.end || 1}
+                Pages {todayPlan?.start || 1} - {todayPlan?.end || 1}
               </p>
               <p className="text-sm text-gray-600 mt-1">
-                ({progress.dailyPages[progress.currentDay - 1]?.pages || 0} pages)
+                ({todayPlan?.pages || 0} pages)
               </p>
             </div>
 
-            {!todayCompleted && (
+            {bookFinished && (
+              <p className="text-center font-medium text-green-700">
+                🎉 You've finished the book!
+              </p>
+            )}
+
+            {!todayCompleted && !bookFinished && (
               <button
                 onClick={handleMarkComplete}
                 className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
@@ -248,26 +273,4 @@ export function Dashboard() {
       </div>
     </div>
   );
-}
-
-function calculateStreak(completedDays: string[]): number {
-  if (completedDays.length === 0) return 0;
-
-  const sortedDays = completedDays.sort().reverse();
-  let streak = 0;
-  let currentDate = new Date();
-
-  for (let i = 0; i < sortedDays.length; i++) {
-    const checkDate = new Date(currentDate);
-    checkDate.setDate(checkDate.getDate() - i);
-    const checkDateStr = checkDate.toISOString().split('T')[0];
-
-    if (sortedDays.includes(checkDateStr)) {
-      streak++;
-    } else {
-      break;
-    }
-  }
-
-  return streak;
 }

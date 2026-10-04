@@ -229,3 +229,62 @@ export function getBookRecommendations(profile: UserProfile): string[] {
 
   return recommendations;
 }
+// ── Shared progress helpers ───────────────────────────────────────────────────
+
+/** YYYY-MM-DD in the user's local time zone (toISOString() would give UTC). */
+export function localDateISO(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Consecutive reading days ending today — or yesterday, so the streak is not
+ * shown as broken before today's reading is done.
+ */
+export function calculateStreak(completedDays: string[], today: Date = new Date()): number {
+  const days = new Set(completedDays);
+  const cursor = new Date(today);
+  if (!days.has(localDateISO(cursor))) cursor.setDate(cursor.getDate() - 1);
+
+  let streak = 0;
+  while (days.has(localDateISO(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+/** Percentage of plan days actually completed (0–100). */
+export function getCompletionPercent(progress: Progress): number {
+  if (progress.totalDays <= 0) return 0;
+  return Math.min(100, (progress.completedDays.length / progress.totalDays) * 100);
+}
+
+/** The part of the book text covered by one day's page range. */
+export function getDayText(book: Book, day: DailyPage | undefined): string {
+  const text = book.content || '';
+  if (!day || !book.totalPages) return text;
+
+  const charsPerPage = text.length / book.totalPages;
+
+  // If a boundary falls mid-word, move it to the end of that word. Both edges
+  // use the same rule, so consecutive days split the text with no gaps or overlap.
+  const snap = (pos: number) => {
+    if (pos <= 0) return 0;
+    if (pos >= text.length) return text.length;
+    if (/\s/.test(text[pos - 1]) || /\s/.test(text[pos])) return pos;
+    const ws = text.slice(pos).search(/\s/);
+    return ws === -1 ? text.length : pos + ws;
+  };
+  const start = snap(Math.floor((day.start - 1) * charsPerPage));
+  const end = snap(Math.floor(day.end * charsPerPage));
+  return text.slice(start, end).trim();
+}
+
+/** Save the audio position without overwriting other progress fields. */
+export function saveAudioPosition(position: number): void {
+  const progress = getProgress();
+  if (progress) updateProgress({ ...progress, audioPosition: position });
+}

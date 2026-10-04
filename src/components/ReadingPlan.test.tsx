@@ -29,6 +29,13 @@ describe('ReadingPlan', () => {
     expect(today.parentElement).toHaveTextContent('Day 3');
   });
 
+  it('labels the next day "Up next" once today is done', () => {
+    seedBook({}, 10, { completedDays: [isoDay(0)], currentDay: 2 });
+    renderAt(<ReadingPlan />, '/plan');
+    expect(screen.queryByText('Today')).not.toBeInTheDocument();
+    expect(screen.getByText('Up next').parentElement).toHaveTextContent('Day 2');
+  });
+
   it('shows a check mark for a day completed on its scheduled date', () => {
     // Uploaded today, day 1 completed today
     seedBook({}, 5, { completedDays: [isoDay(0)], currentDay: 2 });
@@ -36,9 +43,8 @@ describe('ReadingPlan', () => {
     expect(container.querySelectorAll('.lucide-circle-check').length).toBe(1);
   });
 
-  it.fails('BUG: a day completed late is not shown as completed', () => {
+  it('a day completed late (after a missed day) still shows as completed', () => {
     // Uploaded 2 days ago; reader missed a day and completed day 1 today.
-    // Completion is matched by calendar date, so day 1 shows as not done.
     seedBook({ uploadDate: new Date(Date.now() - 2 * 864e5).toISOString() }, 5, {
       completedDays: [isoDay(0)],
       currentDay: 2,

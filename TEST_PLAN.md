@@ -6,10 +6,10 @@ Last full run: 2026-10-04.
 
 | Suite | Command | Result |
 |---|---|---|
-| Web: unit + component (Vitest) | `npm test` | 117 passed (includes 9 known-bug tests) |
+| Web: unit + component (Vitest) | `npm test` | 142 passed |
 | Web: end-to-end in Chromium (Playwright) | `npm run test:e2e` | 2 passed |
 | Web: production build | `npm run build` | OK |
-| Flutter: unit + provider + widget | `cd booklify && flutter test` | 58 passed, 5 skipped (known bugs) |
+| Flutter: unit + provider + widget | `cd booklify && flutter test` | 61 passed, 4 skipped (known bugs) |
 | Flutter: static analysis | `cd booklify && dart analyze lib/` | 0 errors, 3 warnings, 82 infos |
 
 **Known-bug tests.** A test named `BUG: ...` describes how the app *should* behave.
@@ -47,7 +47,7 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] Recommendations match how much the user reads
 - [x] Back returns to step 1
 - [x] No profile → redirected to `/onboarding`; completed profile → page is shown
-- [ ] **BUG:** someone who reads 0 books per year can't continue
+- [x] 0 books per year is accepted *(fixed)*; clearing the field disables Continue again
 
 ### Upload book (`UploadBook.test.tsx`)
 - [x] Continue is disabled for empty or whitespace-only text
@@ -56,7 +56,7 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] Still finishes when ingestion fails (no API keys)
 - [x] Shows ingestion progress ("Embedding passages: 1 / 4")
 - [x] Back from details returns to the upload step
-- [ ] **BUG:** the page says `.pdf, .epub, .txt` are supported, but the file picker only accepts `.txt`
+- [x] The page only advertises `.txt`, matching the file picker *(fixed: it used to claim .pdf/.epub)*
 
 ### Dashboard (`Dashboard.test.tsx`, `Dashboard.integration.test.tsx`)
 - [x] Empty state and Upload button
@@ -66,15 +66,19 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] Level up when XP passes the threshold
 - [x] Streak of consecutive days ending today
 - [x] Quick actions: AI Companion card; View Reading Plan card opens `/plan`
-- [ ] **BUG:** XP on screen doesn't update after marking a day complete (only after a reload)
-- [ ] **BUG:** progress shows 100% (and "Book Conqueror" unlocks) while the last day is still unread. Progress is computed from `currentDay`, not from completed days.
+- [x] XP and level update right after marking a day complete *(fixed)*
+- [x] Progress % is based on completed days, so it isn't 100% before the last day is read *(fixed)*
+- [x] After marking complete, Today's Reading keeps showing the day just read, not tomorrow's *(fixed)*
+- [x] A "finished the book" message replaces the button once every day is read *(fixed)*
+- [x] The streak stays visible in the morning before today's reading *(fixed)*
 
 ### Reading plan (`ReadingPlan.test.tsx`)
 - [x] Empty state
 - [x] Book summary, one row per day, correct page ranges
 - [x] Current day is marked "Today"
 - [x] A day finished on its scheduled date shows a check mark
-- [ ] **BUG:** a day finished late (after a missed day) is not shown as completed. Days are matched by calendar date, not by plan day.
+- [x] A day finished late (after a missed day) still shows as completed *(fixed)*
+- [x] Once today is done, the next day says "Up next" instead of "Today" *(fixed)*
 
 ### AI companion chat (`VoiceChatBot.test.tsx`, `lib/rag/companion.test.ts`)
 - [x] Welcome message for the book, read aloud
@@ -91,13 +95,15 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] Shows the book and today's page range
 - [x] Play speaks the text, Pause pauses it
 - [x] Skip saves the position
-- [ ] **BUG:** reads the whole book aloud, not just today's pages
-- [ ] **BUG:** skip / saved position doesn't change where playback starts
+- [x] Only today's pages are read aloud *(fixed: used to read the whole book)*
+- [x] Skip moves playback (also while playing); Play starts from the saved position; reopening the page resumes *(fixed)*
+- [x] Skip can't go before the start or past the end
+- [x] Changing speed while playing keeps playing at the new rate *(fixed: it used to stop)*
 
 ### Achievements (`Achievements.test.tsx`)
 - [x] Empty state; all 8 achievements listed
 - [x] Streak achievements (7-day) and percentage achievements (25/50/75%) unlock
-- [ ] **BUG:** "Book Conqueror" unlocks before the final day is read (same cause as the Dashboard 100% bug)
+- [x] "Book Conqueror" unlocks only after the final day is read *(fixed)*
 
 ### Navigation (`Dashboard.integration.test.tsx`)
 - [x] All 6 nav links render, the active one is highlighted, and clicking navigates
@@ -108,6 +114,7 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] Daily themes and summaries by position in the book
 - [x] XP, level ups, multiple level ups, XP needed for the next level
 - [x] Book recommendations by reading frequency
+- [x] (`progress-helpers.test.ts`) Local-time dates, streak (today / yesterday / gaps / duplicates), completion %, the day's text split (no lost or repeated words), saving audio position without touching XP
 
 ### RAG library (`lib/rag/*.test.ts`)
 - [x] `makeBookId` builds a stable slug from title and date
@@ -156,7 +163,8 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] UserStats: first session (XP, streak, First Steps), **200 XP daily cap**, cap resets the next day, consecutive days grow the streak, same day doesn't, a missed day resets it, achievements awarded once, book started / finished, survives a restart, corrupt data falls back to defaults, every awarded achievement is defined
 - [x] Auth: starts logged out, sign up → in, sign out → out, sign in → in, saved session restored on launch, bad credentials → error message
 - [x] Locale: English by default, switching persists, en/ru/uz offered
-- [ ] **BUG:** `clearError()` doesn't clear the error message (`copyWith(errorMessage: null)` keeps the old value)
+- [x] `clearError()` clears the message, and a successful sign-in clears an old error *(fixed)*
+- [x] Error messages are shown without Dart's `Exception:` prefix *(fixed)*
 
 ### App smoke tests (`test/widgets/app_smoke_test.dart`)
 - [x] Logged-out user sees onboarding
@@ -169,8 +177,7 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 
 - **Flutter: database achievements never unlock in the app.** `ProgressNotifier.completeDay()` (which calls `checkAndUnlockAchievements`) is never called from any screen. Reading sessions only update `userStatsProvider`, so the SQLite `user_achievements` table stays empty.
 - **Flutter: achievement XP rewards are never granted.** Achievements define `xpReward`, but `UserStatsNotifier` doesn't add it.
-- **Web: the streak drops to 0 each morning** until today's reading is done, even if every previous day was completed.
-- **Web/Flutter: dates use UTC** (`toISOString` / `toIso8601String`) in places, so near midnight a day can be recorded under the wrong date.
+- **Flutter: dates use UTC** (`toIso8601String().split('T')`) in places, so near midnight a day can be recorded under the wrong date. *(Fixed on web: it now uses local dates.)*
 - **Flutter analyzer:** 3 warnings (2 unused imports in `book_provider.dart`, unused `_correctCount` in `lesson_screen.dart`) and 82 deprecation infos (mostly `withOpacity` → `withValues`).
 
 ## Not covered (manual testing)

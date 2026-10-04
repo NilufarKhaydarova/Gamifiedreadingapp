@@ -36,19 +36,58 @@ describe('Dashboard (real storage)', () => {
     expect(screen.getByText('Day Streak').previousElementSibling).toHaveTextContent('3');
   });
 
-  it.fails('BUG: XP shown on the dashboard does not update after marking a day complete', () => {
+  it('XP on the dashboard updates right after marking a day complete', () => {
     seedBook({}, 10);
     renderAt(<Dashboard />);
     fireEvent.click(screen.getByRole('button', { name: /Mark Today's Reading Complete/i }));
-    // Storage has 50 XP, but the component keeps its pre-XP copy of progress.
     expect(screen.getByText(/50 XP until Level 2/)).toBeInTheDocument();
   });
 
-  it.fails('BUG: progress shows 100% before the final day is read', () => {
+  it('progress is not 100% until the final day is read', () => {
     // 10-day plan, 9 days done → currentDay 10, day 10 still unread.
     seedBook({}, 10, { currentDay: 10 });
     renderAt(<Dashboard />);
     expect(screen.queryByText(/100% Complete/)).not.toBeInTheDocument();
+  });
+
+  it("after marking complete, Today's Reading still shows the day just read", () => {
+    seedBook({ totalPages: 100 }, 10);
+    renderAt(<Dashboard />);
+    expect(screen.getByText('Pages 1 - 10')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Mark Today's Reading Complete/i }));
+    expect(screen.getByText('Pages 1 - 10')).toBeInTheDocument();
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+  });
+
+  it('shows the next day once a new day starts', () => {
+    seedBook({ totalPages: 100 }, 10, { completedDays: [isoDay(-1)], currentDay: 2 });
+    renderAt(<Dashboard />);
+    expect(screen.getByText('Pages 11 - 20')).toBeInTheDocument();
+    expect(screen.getByText('2/10')).toBeInTheDocument();
+  });
+
+  it('shows a finished message and no button once every day is read', () => {
+    const done = Array.from({ length: 10 }, (_, i) => isoDay(-1 - i));
+    seedBook({}, 10, { completedDays: done, currentDay: 10 });
+    renderAt(<Dashboard />);
+    expect(screen.getByText(/finished the book/)).toBeInTheDocument();
+    expect(screen.getByText(/100% Complete/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark Today's Reading Complete/i })).not.toBeInTheDocument();
+  });
+
+  it('completing the final day shows the finished message right away', () => {
+    const done = Array.from({ length: 9 }, (_, i) => isoDay(-1 - i));
+    seedBook({}, 10, { completedDays: done, currentDay: 10 });
+    renderAt(<Dashboard />);
+    fireEvent.click(screen.getByRole('button', { name: /Mark Today's Reading Complete/i }));
+    expect(screen.getByText(/finished the book/)).toBeInTheDocument();
+    expect(screen.getByText(/100% Complete/)).toBeInTheDocument();
+  });
+
+  it('keeps the streak visible in the morning before reading', () => {
+    seedBook({}, 10, { completedDays: [isoDay(-2), isoDay(-1)], currentDay: 3 });
+    renderAt(<Dashboard />);
+    expect(screen.getByText('Day Streak').previousElementSibling).toHaveTextContent('2');
   });
 });
 
