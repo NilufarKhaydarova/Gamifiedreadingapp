@@ -49,9 +49,14 @@
           "vaul": "^1.1.2"
       },
       "devDependencies": {
+          "@testing-library/dom": "^10.4.0",
+          "@testing-library/jest-dom": "^6.6.3",
+          "@testing-library/react": "^16.3.0",
           "@types/node": "^20.10.0",
           "@vitejs/plugin-react-swc": "^3.10.2",
-          "vite": "6.3.5"
+          "jsdom": "^25.0.1",
+          "vite": "6.3.5",
+          "vitest": "^3.2.4"
       },
       "scripts": {
           "dev": "vite --port 5173",
@@ -61,6 +66,7 @@
           "start:all": "./start.sh --with-web --with-langfuse",
           "start:web": "./start.sh --web-only",
           "start:clean": "./start.sh --clean",
-          "stop": "docker compose -f docker-compose.langfuse.yml down; lsof -ti:3000 | xargs kill -9 2>/dev/null || true; lsof -ti:5173 | xargs kill -9 2>/dev/null || true"
+          "stop": "docker compose -f docker-compose.langfuse.yml down; lsof -ti:3000 | xargs kill -9 2>/dev/null || true; lsof -ti:5173 | xargs kill -9 2>/dev/null || true",
+          "test": "vitest run"
       }
   }
