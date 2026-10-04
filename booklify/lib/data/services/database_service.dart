@@ -781,6 +781,9 @@ class DatabaseService {
     });
   }
 
+  /// Consecutive calendar days with at least one reading session, ending
+  /// today — or yesterday, so the streak isn't shown as broken before today's
+  /// reading is done.
   Future<int> getUserStreak(String userId) async {
     final db = await database;
     final results = await db.query(
@@ -788,45 +791,35 @@ class DatabaseService {
       where: 'user_id = ?',
       whereArgs: [userId],
       orderBy: 'created_at DESC',
-      limit: 60,
+      limit: 500,
       columns: ['created_at'],
     );
 
-    if (results.isEmpty) return 0;
+    final days = results
+        .map((r) => _dayKey(DateTime.parse(r['created_at'] as String)))
+        .toSet();
+    if (days.isEmpty) return 0;
 
     final now = DateTime.now();
-    int streak = 0;
-    String? lastDateStr;
-
-    for (final session in results) {
-      final sessionDate =
-          DateTime.parse(session['created_at'] as String);
-      final dateStr =
-          sessionDate.toIso8601String().split('T')[0];
-
-      if (lastDateStr == null) {
-        final daysDiff = now.difference(sessionDate).inDays;
-        if (daysDiff <= 1) {
-          streak++;
-          lastDateStr = dateStr;
-        } else {
-          break;
-        }
-      } else {
-        final lastDate = DateTime.parse(lastDateStr);
-        final daysDiff = lastDate.difference(sessionDate).inDays;
-        if (daysDiff <= 1 && dateStr != lastDateStr) {
-          streak++;
-          lastDateStr = dateStr;
-        } else if (dateStr == lastDateStr) {
-          continue; // Same day, skip
-        } else {
-          break;
-        }
-      }
+    var cursor = DateTime(now.year, now.month, now.day);
+    if (!days.contains(_dayKey(cursor))) {
+      cursor = DateTime(cursor.year, cursor.month, cursor.day - 1);
     }
 
+    int streak = 0;
+    while (days.contains(_dayKey(cursor))) {
+      streak++;
+      cursor = DateTime(cursor.year, cursor.month, cursor.day - 1);
+    }
     return streak;
+  }
+
+  /// Local calendar day as YYYY-MM-DD.
+  static String _dayKey(DateTime d) {
+    final local = d.toLocal();
+    return '${local.year.toString().padLeft(4, '0')}-'
+        '${local.month.toString().padLeft(2, '0')}-'
+        '${local.day.toString().padLeft(2, '0')}';
   }
 
   Future<int> getTotalReadingMinutes(String userId) async {

@@ -169,7 +169,7 @@ npm run test:e2e        # Playwright browser journey (starts dev server)
 flutter test            # Unit, provider, SQLite (via sqflite_common_ffi) and widget tests
 ```
 
-See `TEST_PLAN.md` for what is covered and the known-bug tests (`BUG: ...`).
+See `TEST_PLAN.md` for what is covered and how to record known bugs (`BUG: ...` tests).
 
 ## Troubleshooting
 

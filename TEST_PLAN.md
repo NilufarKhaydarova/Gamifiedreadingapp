@@ -9,12 +9,14 @@ Last full run: 2026-10-04.
 | Web: unit + component (Vitest) | `npm test` | 142 passed |
 | Web: end-to-end in Chromium (Playwright) | `npm run test:e2e` | 2 passed |
 | Web: production build | `npm run build` | OK |
-| Flutter: unit + provider + widget | `cd booklify && flutter test` | 61 passed, 4 skipped (known bugs) |
-| Flutter: static analysis | `cd booklify && dart analyze lib/` | 0 errors, 3 warnings, 82 infos |
+| Flutter: unit + provider + widget | `cd booklify && flutter test` | 76 passed |
+| Flutter: static analysis | `cd booklify && dart analyze lib/` | 0 errors, 1 warning, 82 infos |
 
-**Known-bug tests.** A test named `BUG: ...` describes how the app *should* behave.
-- Web (`it.fails`): passes while the bug exists and turns red once it is fixed. Then change `it.fails` to `it`.
-- Flutter (`skip:`): skipped while the bug exists. Remove `skip:` after fixing.
+All bugs found by these tests have been fixed; items marked *(fixed)* below say what used to go wrong.
+
+**Recording a bug you can't fix yet:** write a test named `BUG: ...` that describes the correct behaviour.
+- Web: use `it.fails(...)`. It passes while the bug exists and goes red once it's fixed; then change it to `it`.
+- Flutter: add `skip: 'Known bug: ...'`. Remove the `skip:` after fixing.
 
 ## Running
 
@@ -145,9 +147,11 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] Empty book; one day per chapter; groups chapters when there are fewer days; never more days than chapters
 - [x] Falls back to ~1000-word paragraph groups when there are no chapters
 - [x] Each day gets a reading time and a preview; all chapter text is kept
-- [ ] **BUG:** text before the first "Chapter" heading (preface, intro) is dropped
-- [ ] **BUG:** books with Windows line endings (`\r\n`) end up as a single day
-- [ ] **BUG:** `startOffset` / `endOffset` don't point at the chunk's text in the original book. The AI chat and curriculum use them to fetch the current passage, so the AI gets the wrong text.
+- [x] Text before the first "Chapter" heading (preface, intro) is read on day 1 *(fixed: it was dropped)*
+- [x] Books with Windows line endings (`\r\n`) or single line breaks between paragraphs are split into days *(fixed: they became a single day)*
+- [x] You get the number of days you asked for when chapters don't divide evenly (12 chapters / 5 days → 5 days) *(fixed: it gave 4)*
+- [x] `startOffset` / `endOffset` point at each day's text in the original book, for chapter and paragraph books *(fixed)*
+- [x] `chunksFromText` (book provider, no AI): requested days, every paragraph kept, real offsets, Windows / single line breaks, blank text *(fixed: blank text made it call itself forever)*
 
 ### Local database (`test/services/database_service_test.dart`, real SQLite via FFI)
 - [x] Sign up / sign out / sign in (email is case-insensitive), current user, duplicate email rejected, wrong password rejected, password is hashed
@@ -157,7 +161,7 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] Daily challenge: 15-minute target, completes after enough reading
 - [x] Reading sessions: minutes add up, streak counts
 - [x] Curriculum save / load / delete; highlights and AI interactions per book; reader profile defaults and updates
-- [ ] **BUG:** the streak keeps counting across a missed day (read today and 2 days ago → streak 2)
+- [x] Streak counts calendar days: a missed day breaks it, several sessions a day count once, it survives until you read today *(fixed: it kept counting across a missed day)*
 
 ### Providers (`test/providers/providers_test.dart`)
 - [x] UserStats: first session (XP, streak, First Steps), **200 XP daily cap**, cap resets the next day, consecutive days grow the streak, same day doesn't, a missed day resets it, achievements awarded once, book started / finished, survives a restart, corrupt data falls back to defaults, every awarded achievement is defined
@@ -177,8 +181,7 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 
 - **Flutter: database achievements never unlock in the app.** `ProgressNotifier.completeDay()` (which calls `checkAndUnlockAchievements`) is never called from any screen. Reading sessions only update `userStatsProvider`, so the SQLite `user_achievements` table stays empty.
 - **Flutter: achievement XP rewards are never granted.** Achievements define `xpReward`, but `UserStatsNotifier` doesn't add it.
-- **Flutter: dates use UTC** (`toIso8601String().split('T')`) in places, so near midnight a day can be recorded under the wrong date. *(Fixed on web: it now uses local dates.)*
-- **Flutter analyzer:** 3 warnings (2 unused imports in `book_provider.dart`, unused `_correctCount` in `lesson_screen.dart`) and 82 deprecation infos (mostly `withOpacity` → `withValues`).
+- **Flutter analyzer:** 1 warning (unused `_correctCount` in `lesson_screen.dart`) and 82 infos (mostly `withOpacity` → `withValues` deprecations).
 
 ## Not covered (manual testing)
 

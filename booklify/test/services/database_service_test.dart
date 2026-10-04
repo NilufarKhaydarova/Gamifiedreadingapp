@@ -175,24 +175,50 @@ void main() {
       expect(await db.getUserStreak(user.id), 1);
     });
 
-    test('BUG: streak keeps counting across a missed day', () async {
-      final user = await db.signUp(email: _email(), password: 'pw', displayName: 'A');
+    Future<void> logAt(String userId, DateTime when) async {
       final raw = await db.database;
+      await raw.insert('reading_sessions', {
+        'id': const Uuid().v4(),
+        'user_id': userId,
+        'book_id': 'b',
+        'minutes_read': 10,
+        'day_number': 1,
+        'created_at': when.toIso8601String(),
+      });
+    }
+
+    DateTime daysAgo(int n, [int hour = 10]) {
       final now = DateTime.now();
-      final twoDaysAgo = DateTime(now.year, now.month, now.day - 2, 10);
-      for (final when in [now, twoDaysAgo]) {
-        await raw.insert('reading_sessions', {
-          'id': const Uuid().v4(),
-          'user_id': user.id,
-          'book_id': 'b',
-          'minutes_read': 10,
-          'day_number': 1,
-          'created_at': when.toIso8601String(),
-        });
-      }
-      // Read today and 2 days ago, skipped yesterday → streak should be 1.
+      return DateTime(now.year, now.month, now.day - n, hour);
+    }
+
+    test('a missed day breaks the streak', () async {
+      final user = await db.signUp(email: _email(), password: 'pw', displayName: 'A');
+      await logAt(user.id, DateTime.now());
+      await logAt(user.id, daysAgo(2));
       expect(await db.getUserStreak(user.id), 1);
-    }, skip: 'Known bug: getUserStreak compares a midnight date with a timestamp');
+    });
+
+    test('consecutive days count, several sessions a day count once', () async {
+      final user = await db.signUp(email: _email(), password: 'pw', displayName: 'A');
+      for (final d in [daysAgo(0, 8), daysAgo(0, 20), daysAgo(1, 23), daysAgo(2, 1), daysAgo(4)]) {
+        await logAt(user.id, d);
+      }
+      expect(await db.getUserStreak(user.id), 3);
+    });
+
+    test('the streak survives until the reader reads today', () async {
+      final user = await db.signUp(email: _email(), password: 'pw', displayName: 'A');
+      await logAt(user.id, daysAgo(1));
+      await logAt(user.id, daysAgo(2));
+      expect(await db.getUserStreak(user.id), 2);
+    });
+
+    test('nothing since the day before yesterday means no streak', () async {
+      final user = await db.signUp(email: _email(), password: 'pw', displayName: 'A');
+      await logAt(user.id, daysAgo(2));
+      expect(await db.getUserStreak(user.id), 0);
+    });
   });
 
   group('curriculum & adaptive RAG storage', () {

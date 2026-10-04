@@ -1,5 +1,6 @@
 import 'package:booklify/data/models/book.dart';
 import 'package:booklify/data/services/chunker_service.dart';
+import 'package:booklify/presentation/providers/book_provider.dart' show chunksFromText;
 import 'package:flutter_test/flutter_test.dart';
 
 String _chapters(int n, {int wordsEach = 50}) => List.generate(
@@ -65,23 +66,83 @@ void main() {
     }
   });
 
-  test('BUG: text before the first chapter (preface / intro) is dropped', () async {
+  test('text before the first chapter (preface / intro) is read on day 1', () async {
     final content = 'PREFACE-TEXT about this book.\n\n${_chapters(5)}';
     final plan = await chunker.createReadingPlan(content: content, totalDays: 5);
-    expect(_allText(plan), contains('PREFACE-TEXT'));
-  }, skip: 'Known bug: SmartChunkerService drops text before the first chapter heading');
+    expect(plan, hasLength(5));
+    expect(plan.first.subChunks.first.content, startsWith('PREFACE-TEXT'));
+    expect(plan.first.episodeTitle, 'Chapter 1');
+  });
 
-  test('BUG: Windows line endings (\\r\\n) put the whole book into one day', () async {
+  test('Windows line endings (\\r\\n) are split into days like normal text', () async {
     final content = _paragraphs(20).replaceAll('\n', '\r\n');
     final plan = await chunker.createReadingPlan(content: content, totalDays: 4);
-    expect(plan.length, greaterThan(1));
-  }, skip: 'Known bug: paragraph split only recognises "\\n\\n"');
+    expect(plan, hasLength(4));
+    expect(_allText(plan), isNot(contains('\r')));
+  });
 
-  test('BUG: chunk offsets do not point at the chunk text in the original book', () async {
-    // Offsets are used to give the AI chat the passage the reader is on.
-    final content = 'Intro line.\n\n${_chapters(5)}';
-    final plan = await chunker.createReadingPlan(content: content, totalDays: 5);
-    final day2 = plan[1];
-    expect(content.substring(day2.startOffset, day2.endOffset), startsWith('Chapter 2'));
-  }, skip: 'Known bug: offsets are computed from re-joined text, not the original');
+  test('paragraphs separated by single line breaks are still split', () async {
+    final content = _paragraphs(20).replaceAll('\n\n', '\n');
+    final plan = await chunker.createReadingPlan(content: content, totalDays: 4);
+    expect(plan, hasLength(4));
+  });
+
+  test('gives the number of days asked for when chapters do not divide evenly', () async {
+    final plan = await chunker.createReadingPlan(content: _chapters(12), totalDays: 5);
+    expect(plan, hasLength(5));
+    expect(plan.map((d) => d.subChunks.length), [2, 2, 3, 2, 3]);
+  });
+
+  group('chunk offsets point at the day\'s text in the original book', () {
+    void expectOffsetsMatch(String content, List<BookChunk> plan) {
+      for (final day in plan) {
+        final slice = content.substring(day.startOffset, day.endOffset).replaceAll('\r\n', '\n');
+        expect(slice, startsWith(day.subChunks.first.content), reason: 'day ${day.dayNumber}');
+        expect(slice, endsWith(day.subChunks.last.content), reason: 'day ${day.dayNumber}');
+      }
+    }
+
+    test('chapter books', () async {
+      final content = 'Intro line.\n\n${_chapters(5)}';
+      final plan = await chunker.createReadingPlan(content: content, totalDays: 5);
+      expect(content.substring(plan[1].startOffset, plan[1].endOffset), startsWith('Chapter 2'));
+      expectOffsetsMatch(content, plan);
+    });
+
+    test('paragraph books with Windows line endings', () async {
+      final content = _paragraphs(20).replaceAll('\n', '\r\n');
+      expectOffsetsMatch(content, await chunker.createReadingPlan(content: content, totalDays: 4));
+    });
+  });
+
+  group('chunksFromText (book provider, no AI)', () {
+    final text = List.generate(14, (i) => 'Paragraph $i ${'w ' * 30}').join('\n\n');
+
+    test('splits paragraphs into the requested days', () {
+      final plan = chunksFromText(text, days: 7);
+      expect(plan, hasLength(7));
+      expect(plan.every((d) => d.subChunks.length == 2), isTrue);
+    });
+
+    test('keeps every paragraph and real offsets', () {
+      final plan = chunksFromText(text, days: 5);
+      expect(plan.expand((d) => d.subChunks).length, 14);
+      for (final day in plan) {
+        expect(text.substring(day.startOffset, day.endOffset), startsWith(day.subChunks.first.content));
+      }
+    });
+
+    test('handles Windows and single line breaks', () {
+      expect(chunksFromText(text.replaceAll('\n', '\r\n'), days: 7), hasLength(7));
+      expect(chunksFromText(text.replaceAll('\n\n', '\n'), days: 7), hasLength(7));
+    });
+
+    test('blank text gives no days (used to recurse forever)', () {
+      expect(chunksFromText('   \n \n  '), isEmpty);
+    });
+
+    test('never more days than paragraphs', () {
+      expect(chunksFromText('One.\n\nTwo.', days: 7), hasLength(2));
+    });
+  });
 }
