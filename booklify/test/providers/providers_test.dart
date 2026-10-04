@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:booklify/data/models/book.dart';
 import 'package:booklify/presentation/providers/auth_provider.dart';
+import 'package:booklify/presentation/providers/garden_provider.dart';
 import 'package:booklify/presentation/providers/locale_provider.dart';
 import 'package:booklify/presentation/providers/user_stats_provider.dart';
 import 'package:flutter/material.dart';
@@ -39,29 +41,45 @@ void main() {
       final c = await containerWith();
       final unlocked = await c.read(userStatsProvider.notifier).completeSession(xpEarned: 60);
       final s = c.read(userStatsProvider).value!;
-      expect(s.xp, 60);
+      expect(s.xp, 85); // 60 for the session + 25 First Steps reward
       expect(s.level, 1);
       expect(s.streakDays, 1);
       expect(s.totalSessionsCompleted, 1);
       expect(unlocked, contains('first_session'));
     });
 
-    test('XP is capped at 200 per day', () async {
+    test('session XP is capped at 200 per day; achievement rewards are not', () async {
       final c = await containerWith();
       final n = c.read(userStatsProvider.notifier);
       await n.completeSession(xpEarned: 150);
       await n.completeSession(xpEarned: 150);
       await n.completeSession(xpEarned: 150);
       final s = c.read(userStatsProvider).value!;
-      expect(s.xp, 200);
       expect(s.xpEarnedToday, 200);
+      expect(s.xp, 225); // 200 capped session XP + 25 First Steps reward
       expect(s.level, 3);
+    });
+
+    test('unlocking an achievement adds its XP reward once', () async {
+      final c = await containerWith({'totalSessionsCompleted': 4, 'earnedAchievementIds': ['first_session']});
+      final unlocked = await c.read(userStatsProvider.notifier).completeSession(xpEarned: 10);
+      expect(unlocked, ['sessions_5']);
+      expect(c.read(userStatsProvider).value!.xp, 10 + achievementReward('sessions_5'));
+      await c.read(userStatsProvider.notifier).completeSession(xpEarned: 10);
+      expect(c.read(userStatsProvider).value!.xp, 20 + achievementReward('sessions_5'));
+    });
+
+    test('a reward that pushes XP over a threshold unlocks that achievement too', () async {
+      final c = await containerWith({'xp': 480, 'level': 5, 'earnedAchievementIds': ['first_session', 'level_5']});
+      final unlocked = await c.read(userStatsProvider.notifier).recordBookStarted();
+      expect(unlocked, ['first_book', 'xp_500']);
+      expect(c.read(userStatsProvider).value!.xp, 480 + 25 + 50);
     });
 
     test('the daily cap resets on a new day', () async {
       final c = await containerWith({'xp': 200, 'level': 3, 'xpEarnedToday': 200, 'lastXPDate': _day(-1)});
       await c.read(userStatsProvider.notifier).completeSession(xpEarned: 80);
-      expect(c.read(userStatsProvider).value!.xp, 280);
+      expect(c.read(userStatsProvider).value!.xp, 200 + 80 + 25); // + First Steps reward
     });
 
     test('reading on consecutive days grows the streak', () async {
@@ -69,6 +87,7 @@ void main() {
       final unlocked = await c.read(userStatsProvider.notifier).completeSession(xpEarned: 10);
       expect(c.read(userStatsProvider).value!.streakDays, 3);
       expect(unlocked, contains('streak_3'));
+      expect(c.read(userStatsProvider).value!.xp, 10 + 25 + 75); // + First Steps + 3-day streak
     });
 
     test('a second session on the same day does not grow the streak', () async {
@@ -98,8 +117,10 @@ void main() {
       final s = c.read(userStatsProvider).value!;
       expect(s.totalBooksStarted, 1);
       expect(s.totalBooksFinished, 1);
-      expect(s.xp, 200); // finish bonus, within the daily cap
-      expect(s.earnedAchievementIds, containsAll(['first_book', 'book_finished']));
+      // 25 (First Book) + 200 finish bonus + 200 (Book Finished) = 425 → level 5,
+      // which unlocks Level 5 (+100) → 525 → Knowledge Seeker (+50) → 575.
+      expect(s.xp, 575);
+      expect(s.earnedAchievementIds, containsAll(['first_book', 'book_finished', 'level_5', 'xp_500']));
     });
 
     test('stats persist across app restarts', () async {
@@ -107,7 +128,7 @@ void main() {
       await c.read(userStatsProvider.notifier).completeSession(xpEarned: 40);
       final c2 = ProviderContainer();
       addTearDown(c2.dispose);
-      expect((await c2.read(userStatsProvider.future)).xp, 40);
+      expect((await c2.read(userStatsProvider.future)).xp, 40 + 25); // + First Steps reward
     });
 
     test('corrupt saved stats fall back to defaults', () async {
@@ -200,6 +221,57 @@ void main() {
       await n.signIn(email: email, password: 'pw123456');
       expect(c.read(authStatusProvider), AuthStatus.authenticated);
       expect(c.read(authProvider).errorMessage, isNull);
+    });
+  });
+
+  group('Library feeds reading achievements', () {
+    BookChunk day(int n) => BookChunk(
+          id: 'day-$n',
+          dayNumber: n,
+          episodeTitle: 'Day $n',
+          keyIdea: '',
+          preview: '',
+          difficulty: Difficulty.light,
+          estimatedMinutes: 5,
+          startOffset: 0,
+          endOffset: 0,
+        );
+
+    test('adding a book counts as started; finishing its last day counts once', () async {
+      SharedPreferences.setMockInitialValues({});
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      c.listen(authProvider, (_, __) {});
+      await _settle();
+      await c.read(authProvider.notifier)
+          .signUp(email: '${const Uuid().v4()}@t.dev', password: 'pw123456', displayName: 'Ann');
+      await c.read(userStatsProvider.future);
+
+      final book = Book(
+        id: const Uuid().v4(),
+        title: 'Dune',
+        author: 'Frank Herbert',
+        totalPages: 10,
+        content: 'text',
+        uploadDate: DateTime.now(),
+        chunks: [day(1), day(2)],
+      );
+      final books = c.read(booksProvider.notifier);
+      await books.addBook(book);
+      expect(c.read(userStatsProvider).value!.totalBooksStarted, 1);
+      expect(c.read(userStatsProvider).value!.earnedAchievementIds, contains('first_book'));
+
+      await c.read(booksProvider.future);
+      expect(await books.markChunkComplete(book.id, 'day-1'), isEmpty);
+      expect(c.read(userStatsProvider).value!.totalBooksFinished, 0);
+
+      await c.read(booksProvider.future);
+      expect(await books.markChunkComplete(book.id, 'day-2'), contains('book_finished'));
+      expect(c.read(userStatsProvider).value!.totalBooksFinished, 1);
+
+      await c.read(booksProvider.future);
+      await books.markChunkComplete(book.id, 'day-2'); // re-reading the last day
+      expect(c.read(userStatsProvider).value!.totalBooksFinished, 1);
     });
   });
 

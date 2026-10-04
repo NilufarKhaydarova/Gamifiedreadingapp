@@ -9,8 +9,8 @@ Last full run: 2026-10-04.
 | Web: unit + component (Vitest) | `npm test` | 142 passed |
 | Web: end-to-end in Chromium (Playwright) | `npm run test:e2e` | 2 passed |
 | Web: production build | `npm run build` | OK |
-| Flutter: unit + provider + widget | `cd booklify && flutter test` | 76 passed |
-| Flutter: static analysis | `cd booklify && dart analyze lib/` | 0 errors, 1 warning, 82 infos |
+| Flutter: unit + provider + widget | `cd booklify && flutter test` | 80 passed |
+| Flutter: static analysis | `cd booklify && dart analyze lib/` | No issues |
 
 All bugs found by these tests have been fixed; items marked *(fixed)* below say what used to go wrong.
 
@@ -165,6 +165,8 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 
 ### Providers (`test/providers/providers_test.dart`)
 - [x] UserStats: first session (XP, streak, First Steps), **200 XP daily cap**, cap resets the next day, consecutive days grow the streak, same day doesn't, a missed day resets it, achievements awarded once, book started / finished, survives a restart, corrupt data falls back to defaults, every awarded achievement is defined
+- [x] Achievement XP rewards are added once and don't count toward the daily cap; a reward that crosses an XP / level threshold unlocks that achievement too *(fixed: rewards were never granted)*
+- [x] Adding a book counts as started; completing its last day counts as finished, once *(fixed: the live library never reported either, so book achievements could not unlock)*
 - [x] Auth: starts logged out, sign up → in, sign out → out, sign in → in, saved session restored on launch, bad credentials → error message
 - [x] Locale: English by default, switching persists, en/ru/uz offered
 - [x] `clearError()` clears the message, and a successful sign-in clears an old error *(fixed)*
@@ -174,14 +176,14 @@ No API keys are needed for any test. AI calls are mocked, or the app falls back 
 - [x] Logged-out user sees onboarding
 - [x] Logged-in user sees the main screen, and Learn / Books / Insights / Profile all open without crashing (no API keys)
 - [x] A saved Russian language setting is applied to the navigation
+- [x] Profile opens the achievements list (14, earned ones marked) *(new: achievements had no screen)*
 
 ---
 
 ## Other findings (not covered by a failing test)
 
-- **Flutter: database achievements never unlock in the app.** `ProgressNotifier.completeDay()` (which calls `checkAndUnlockAchievements`) is never called from any screen. Reading sessions only update `userStatsProvider`, so the SQLite `user_achievements` table stays empty.
-- **Flutter: achievement XP rewards are never granted.** Achievements define `xpReward`, but `UserStatsNotifier` doesn't add it.
-- **Flutter analyzer:** 1 warning (unused `_correctCount` in `lesson_screen.dart`) and 82 infos (mostly `withOpacity` → `withValues` deprecations).
+- **Flutter: two achievement systems.** The app uses `userStatsProvider` (SharedPreferences). The SQLite `achievements` / `user_achievements` tables and `ProgressNotifier.completeDay()` are no longer used by any screen; they can be removed or migrated.
+- **Flutter: two XP numbers.** Profile's XP card shows Learn-tab (curriculum) XP at 500 per level; reading XP lives in `userStatsProvider` at 100 per level and appears in the session dialog and achievements.
 
 ## Not covered (manual testing)
 

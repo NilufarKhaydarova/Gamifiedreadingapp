@@ -78,8 +78,8 @@ class TreePainter extends CustomPainter {
 
     final skyGradient = RadialGradient(
       colors: [
-        skyColor1.withOpacity(0.3),
-        skyColor2.withOpacity(0.1),
+        skyColor1.withValues(alpha: 0.3),
+        skyColor2.withValues(alpha: 0.1),
       ],
     );
 
@@ -261,7 +261,7 @@ class TreePainter extends CustomPainter {
 
     for (int i = 0; i < completedDays; i++) {
       final leafPaint = Paint()
-        ..color = leafColors[i % leafColors.length].withOpacity(0.8)
+        ..color = leafColors[i % leafColors.length].withValues(alpha: 0.8)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
 
       // Position leaves around the canopy with animation delays
@@ -389,7 +389,7 @@ class TreePainter extends CustomPainter {
 
   void _drawSun(Canvas canvas, Size size) {
     final sunPaint = Paint()
-      ..color = const Color(0xFFFFF176).withOpacity(0.8)
+      ..color = const Color(0xFFFFF176).withValues(alpha: 0.8)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10.0);
 
     canvas.drawCircle(
@@ -401,7 +401,7 @@ class TreePainter extends CustomPainter {
 
   void _drawClouds(Canvas canvas, Size size) {
     final cloudPaint = Paint()
-      ..color = const Color(0xFFFFFFFF).withOpacity(0.7)
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.7)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0);
 
     for (int i = 0; i < 3; i++) {
@@ -416,7 +416,7 @@ class TreePainter extends CustomPainter {
 
   void _drawRain(Canvas canvas, Size size) {
     final rainPaint = Paint()
-      ..color = const Color(0xFF64B5F6).withOpacity(0.5)
+      ..color = const Color(0xFF64B5F6).withValues(alpha: 0.5)
       ..strokeWidth = 1.0;
 
     for (int i = 0; i < 20; i++) {

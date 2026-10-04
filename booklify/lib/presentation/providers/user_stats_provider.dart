@@ -238,6 +238,14 @@ const kAllAchievements = [
   ),
 ];
 
+/// XP granted when achievement [id] unlocks (0 if unknown).
+int achievementReward(String id) {
+  for (final a in kAllAchievements) {
+    if (a.id == id) return a.xpReward;
+  }
+  return 0;
+}
+
 // ─── Notifier ─────────────────────────────────────────────────────────────────
 
 class UserStatsNotifier extends AsyncNotifier<UserStats> {
@@ -304,31 +312,25 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
           lastXPDate: today,
         );
 
-    final newIds = _checkAchievements(afterXP, current.earnedAchievementIds);
-    final saved = afterXP.copyWith(
-      earnedAchievementIds: [
-        ...current.earnedAchievementIds,
-        ...newIds,
-      ],
-    );
-
+    final (saved, newIds) = _awardAchievements(afterXP);
     state = AsyncData(saved);
     await _persist(saved);
     return newIds;
   }
 
-  Future<void> recordBookStarted() async {
+  /// Returns newly unlocked achievement ids.
+  Future<List<String>> recordBookStarted() async {
     final current = state.value ?? const UserStats();
     final updated =
         current.copyWith(totalBooksStarted: current.totalBooksStarted + 1);
-    final newIds = _checkAchievements(updated, current.earnedAchievementIds);
-    final saved = updated.copyWith(
-        earnedAchievementIds: [...current.earnedAchievementIds, ...newIds]);
+    final (saved, newIds) = _awardAchievements(updated);
     state = AsyncData(saved);
     await _persist(saved);
+    return newIds;
   }
 
-  Future<void> recordBookFinished() async {
+  /// Returns newly unlocked achievement ids.
+  Future<List<String>> recordBookFinished() async {
     final current = state.value ?? const UserStats();
     // Book-finish XP is a bonus — also subject to daily cap
     final today = _today();
@@ -346,14 +348,31 @@ class UserStatsNotifier extends AsyncNotifier<UserStats> {
           xpEarnedToday: todayAccumulated + cappedBonus,
           lastXPDate: today,
         );
-    final newIds = _checkAchievements(updated, current.earnedAchievementIds);
-    final saved = updated.copyWith(
-        earnedAchievementIds: [...current.earnedAchievementIds, ...newIds]);
+    final (saved, newIds) = _awardAchievements(updated);
     state = AsyncData(saved);
     await _persist(saved);
+    return newIds;
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────
+
+  /// Marks newly met achievements as earned and adds their XP rewards.
+  /// Rewards are one-off bonuses, so they don't count toward the daily cap.
+  /// A reward can itself unlock an XP or level achievement, so check again
+  /// until nothing new unlocks.
+  (UserStats, List<String>) _awardAchievements(UserStats stats) {
+    var s = stats;
+    final unlocked = <String>[];
+    while (true) {
+      final newIds = _checkAchievements(s, s.earnedAchievementIds);
+      if (newIds.isEmpty) return (s, unlocked);
+      final reward = newIds.fold<int>(0, (sum, id) => sum + achievementReward(id));
+      s = s.withXP(reward).copyWith(
+            earnedAchievementIds: [...s.earnedAchievementIds, ...newIds],
+          );
+      unlocked.addAll(newIds);
+    }
+  }
 
   List<String> _checkAchievements(
       UserStats s, List<String> alreadyEarned) {

@@ -157,6 +157,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get profileLanguage => 'Язык';
 
   @override
+  String get profileAchievements => 'Достижения';
+
+  @override
   String get insightsTitle => 'Карта знаний';
 
   @override

@@ -217,16 +217,21 @@ class _ReadingSessionScreenState extends ConsumerState<ReadingSessionScreen>
         );
       }
 
-      final xpEarned = (_elapsedMinutes * 5) + 25;
-      final newAchievements = await ref
-          .read(userStatsProvider.notifier)
-          .completeSession(xpEarned: xpEarned);
+      final before = await ref.read(userStatsProvider.future);
+      final newAchievements = [
+        ...await ref
+            .read(userStatsProvider.notifier)
+            .completeSession(xpEarned: (_elapsedMinutes * 5) + 25),
+        ...await ref
+            .read(booksProvider.notifier)
+            .markChunkComplete(widget.book.id, widget.chunk.id),
+      ];
 
-      await ref
-          .read(booksProvider.notifier)
-          .markChunkComplete(widget.book.id, widget.chunk.id);
-
+      // Show what was actually gained: the daily cap can lower session XP,
+      // and achievement rewards add to it.
       final stats = ref.read(userStatsProvider).value;
+      final xpEarned = (stats?.xp ?? before.xp) - before.xp;
+      final leveledUp = stats != null && stats.level > before.level;
 
       if (mounted) {
         setState(() => _isSaving = false);
@@ -241,7 +246,7 @@ class _ReadingSessionScreenState extends ConsumerState<ReadingSessionScreen>
             highlights: _sessionHighlights.length,
             aiQuestions: _sessionAiQuestions.length,
             scrollCompletion: _scrollCompletion,
-            newLevel: stats?.level,
+            newLevel: leveledUp ? stats.level : null,
             newAchievements: newAchievements,
             onDone: () {
               Navigator.pop(context);

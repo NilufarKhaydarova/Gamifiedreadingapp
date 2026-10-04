@@ -299,7 +299,7 @@ class DatabaseService {
 
   // Simple password hashing for local app
   String hashPassword(String password) {
-    final bytes = utf8.encode(password + 'booklify_salt_2024');
+    final bytes = utf8.encode('${password}booklify_salt_2024');
     int hash = 5381;
     for (final b in bytes) {
       hash = ((hash << 5) + hash) + b;

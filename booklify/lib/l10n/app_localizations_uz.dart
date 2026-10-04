@@ -157,6 +157,9 @@ class AppLocalizationsUz extends AppLocalizations {
   String get profileLanguage => 'Til';
 
   @override
+  String get profileAchievements => 'Yutuqlar';
+
+  @override
   String get insightsTitle => 'Bilimlar xaritasi';
 
   @override

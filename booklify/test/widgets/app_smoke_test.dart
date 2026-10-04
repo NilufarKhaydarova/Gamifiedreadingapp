@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:booklify/app.dart';
 import 'package:booklify/data/services/database_service.dart';
 import 'package:booklify/presentation/screens/auth/onboarding_screen.dart';
+import 'package:booklify/presentation/screens/gamification/achievements_screen.dart';
 import 'package:booklify/presentation/screens/main/main_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -79,6 +80,30 @@ void main() {
       await _settleIo(tester);
       _expectNoCrash(tester, reason: 'tab "$tab" threw');
     }
+    await _unmount(tester);
+  });
+
+  testWidgets('Profile opens the achievements list with earned ones marked', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'booklify_user_stats_v2': '{"xp":25,"totalSessionsCompleted":1,"earnedAchievementIds":["first_session"]}',
+    });
+    await tester.runAsync(() => DatabaseService()
+        .signUp(email: '${const Uuid().v4()}@t.dev', password: 'pw123456', displayName: 'Tester'));
+    await _launch(tester);
+
+    await tester.tap(find.text('Profile').last);
+    await _settleIo(tester);
+    final card = find.text('Achievements');
+    await tester.scrollUntilVisible(card, 300, scrollable: find.byType(Scrollable).first);
+    await _settleIo(tester);
+    expect(find.text('1 / 14'), findsOneWidget);
+
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    expect(find.byType(AchievementsScreen), findsOneWidget);
+    expect(find.text('First Steps'), findsOneWidget);
+    expect(find.text('✓ Unlocked'), findsOneWidget);
+    _expectNoCrash(tester);
     await _unmount(tester);
   });
 

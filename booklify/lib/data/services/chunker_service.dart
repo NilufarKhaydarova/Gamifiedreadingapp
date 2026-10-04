@@ -53,7 +53,7 @@ class SmartChunkerService {
       // Sub-chunks
       final subChunks = dayChunks.asMap().entries.map((entry) {
         return SubChunk(
-          id: '${const Uuid().v4()}',
+          id: const Uuid().v4(),
           content: entry.value.content,
           type: _getChunkType(entry.value.content),
           wordCount: countWords(entry.value.content),

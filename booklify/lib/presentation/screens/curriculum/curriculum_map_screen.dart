@@ -124,7 +124,7 @@ class _CurriculumMapView extends ConsumerWidget {
           padding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.xpGold.withOpacity(0.15),
+            color: AppColors.xpGold.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
@@ -271,10 +271,10 @@ class _LevelSection extends ConsumerWidget {
       decoration: BoxDecoration(
         color: isLocked
             ? AppColors.inputBg
-            : color.withOpacity(0.12),
+            : color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isLocked ? AppColors.border : color.withOpacity(0.3),
+          color: isLocked ? AppColors.border : color.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -372,7 +372,7 @@ class _LevelSection extends ConsumerWidget {
                   height: 36,
                   child: CircularProgressIndicator(
                     value: level.progressPercent,
-                    backgroundColor: color.withOpacity(0.15),
+                    backgroundColor: color.withValues(alpha: 0.15),
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                     strokeWidth: 4,
                   ),
@@ -433,7 +433,7 @@ class _LevelSection extends ConsumerWidget {
       child: CustomPaint(
         size: const Size(double.infinity, 24),
         painter: _ConnectorPainter(
-          color: isLocked ? AppColors.border : color.withOpacity(0.4),
+          color: isLocked ? AppColors.border : color.withValues(alpha: 0.4),
         ),
       ),
     );
@@ -519,7 +519,7 @@ class _LessonBubble extends ConsumerWidget {
                   ? null
                   : [
                       BoxShadow(
-                        color: color.withOpacity(0.25),
+                        color: color.withValues(alpha: 0.25),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -566,7 +566,7 @@ class _LessonBubble extends ConsumerWidget {
               width: 60,
               child: LinearProgressIndicator(
                 value: lesson.progressPercent,
-                backgroundColor: color.withOpacity(0.2),
+                backgroundColor: color.withValues(alpha: 0.2),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
                 minHeight: 3,
                 borderRadius: BorderRadius.circular(2),

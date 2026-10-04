@@ -157,6 +157,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileLanguage => 'Language';
 
   @override
+  String get profileAchievements => 'Achievements';
+
+  @override
   String get insightsTitle => 'Knowledge Map';
 
   @override

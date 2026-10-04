@@ -662,7 +662,7 @@ Remember: the goal isn't just to know these ideas, but to let them change how yo
     return titles.asMap().entries.map((e) {
       final num = e.key + 1;
       return Lesson(
-        id: 'l${levelNum}_${num}',
+        id: 'l${levelNum}_$num',
         title: e.value,
         number: num,
         steps: [],

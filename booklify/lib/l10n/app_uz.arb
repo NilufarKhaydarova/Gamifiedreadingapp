@@ -50,6 +50,7 @@
   "profileChangeTopicBtn": "Mavzuni o'zgartirish",
   "profileNoLessons": "Hozircha darslar yo'q",
   "profileLanguage": "Til",
+  "profileAchievements": "Yutuqlar",
 
   "insightsTitle": "Bilimlar xaritasi",
   "insightsTopic": "Mavzu: {topic}",

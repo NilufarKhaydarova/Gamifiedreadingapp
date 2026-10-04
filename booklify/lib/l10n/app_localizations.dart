@@ -370,6 +370,12 @@ abstract class AppLocalizations {
   /// **'Language'**
   String get profileLanguage;
 
+  /// No description provided for @profileAchievements.
+  ///
+  /// In en, this message translates to:
+  /// **'Achievements'**
+  String get profileAchievements;
+
   /// No description provided for @insightsTitle.
   ///
   /// In en, this message translates to:

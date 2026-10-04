@@ -194,7 +194,7 @@ class _LessonScreenState extends ConsumerState<LessonScreen>
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.xpGold.withOpacity(0.15),
+                  color: AppColors.xpGold.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -231,7 +231,7 @@ class _LessonScreenState extends ConsumerState<LessonScreen>
                       color: isDone
                           ? color
                           : isCurrent
-                              ? color.withOpacity(0.2)
+                              ? color.withValues(alpha: 0.2)
                               : AppColors.inputBg,
                       borderRadius: BorderRadius.circular(8),
                       border: isCurrent
@@ -713,6 +713,19 @@ class _QuizStepState extends State<_QuizStep> {
                     ),
                   ),
                 ],
+                if (_answered && _isLastQuestion) ...[
+                  const SizedBox(height: 20),
+                  Center(
+                    child: Text(
+                      'You got $_correctCount of ${widget.step.questions.length} right',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: widget.color,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 32),
               ],
             ),
@@ -766,7 +779,7 @@ class _AnswerOption extends StatelessWidget {
       }
     } else if (selected) {
       borderColor = color;
-      bgColor = color.withOpacity(0.1);
+      bgColor = color.withValues(alpha: 0.1);
       textColor = color;
     }
 
@@ -1295,7 +1308,7 @@ class _LessonCompleteDialog extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: 24, vertical: 14),
               decoration: BoxDecoration(
-                color: AppColors.xpGold.withOpacity(0.15),
+                color: AppColors.xpGold.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(

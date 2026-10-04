@@ -50,6 +50,7 @@
   "profileChangeTopicBtn": "Сменить тему",
   "profileNoLessons": "Уроков пока нет",
   "profileLanguage": "Язык",
+  "profileAchievements": "Достижения",
 
   "insightsTitle": "Карта знаний",
   "insightsTopic": "Тема: {topic}",

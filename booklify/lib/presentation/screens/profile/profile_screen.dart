@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../app.dart' show AppLocalizationsX;
+import '../../../app.dart' show AppLocalizations, AppLocalizationsX;
 import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/curriculum_provider.dart';
 import '../../providers/locale_provider.dart';
+import '../../providers/user_stats_provider.dart';
 import '../curriculum/topic_input_screen.dart';
+import '../gamification/achievements_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -154,6 +156,8 @@ class ProfileScreen extends ConsumerWidget {
         const SizedBox(height: 20),
         _buildStreakCalendar(context, l, streak),
         const SizedBox(height: 20),
+        _buildAchievementsCard(context, ref, l),
+        const SizedBox(height: 20),
         if (curriculum != null) ...[
           _buildCurriculumCard(context, ref, l, title, topic, completedLessons, totalLessons),
           const SizedBox(height: 20),
@@ -179,7 +183,7 @@ class ProfileScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.forestDark.withOpacity(0.3),
+            color: AppColors.forestDark.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -193,7 +197,7 @@ class ProfileScreen extends ConsumerWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: AppColors.xpGold.withOpacity(0.2),
+                  color: AppColors.xpGold.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: const Center(
@@ -231,7 +235,7 @@ class ProfileScreen extends ConsumerWidget {
                     '$xpInLevel / $xpForNext XP',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -252,7 +256,7 @@ class ProfileScreen extends ConsumerWidget {
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: xpInLevel / xpForNext,
-              backgroundColor: Colors.white.withOpacity(0.15),
+              backgroundColor: Colors.white.withValues(alpha: 0.15),
               valueColor:
                   const AlwaysStoppedAnimation<Color>(AppColors.xpGold),
               minHeight: 8,
@@ -317,9 +321,11 @@ class ProfileScreen extends ConsumerWidget {
             children: [
               const Text('🌲', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
-              Text(
-                l.profileForest,
-                style: Theme.of(context).textTheme.titleMedium,
+              Flexible(
+                child: Text(
+                  l.profileForest,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
             ],
           ),
@@ -377,7 +383,7 @@ class ProfileScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.streakOrange.withOpacity(0.15),
+                    color: AppColors.streakOrange.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -424,7 +430,7 @@ class ProfileScreen extends ConsumerWidget {
                       color: isActive
                           ? AppColors.streakOrange
                           : isToday
-                              ? AppColors.streakOrange.withOpacity(0.15)
+                              ? AppColors.streakOrange.withValues(alpha: 0.15)
                               : AppColors.inputBg,
                       border: isToday
                           ? Border.all(
@@ -464,7 +470,7 @@ class ProfileScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppColors.primarySurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -517,7 +523,7 @@ class ProfileScreen extends ConsumerWidget {
                         ? completedLessons / totalLessons
                         : 0.0,
                     backgroundColor:
-                        AppColors.primary.withOpacity(0.2),
+                        AppColors.primary.withValues(alpha: 0.2),
                     valueColor: const AlwaysStoppedAnimation<Color>(
                         AppColors.primary),
                     minHeight: 6,
@@ -536,6 +542,46 @@ class ProfileScreen extends ConsumerWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementsCard(BuildContext context, WidgetRef ref, l) {
+    final earned =
+        ref.watch(userStatsProvider).value?.earnedAchievementIds.toSet() ??
+            const <String>{};
+    final unlocked = kAllAchievements.where((a) => earned.contains(a.id)).length;
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AchievementsScreen()),
+      ),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            const Text('🏆', style: TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(l.profileAchievements,
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            Text(
+              '$unlocked / ${kAllAchievements.length}',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+          ],
+        ),
       ),
     );
   }
@@ -697,7 +743,7 @@ class ProfileScreen extends ConsumerWidget {
 
   int _xpToLevel(int xp) => (xp / 500).floor() + 1;
 
-  String _forestDescription(l, int completed) {
+  String _forestDescription(AppLocalizations l, int completed) {
     if (completed == 0) return l.profileForest0;
     if (completed < 3) return l.profileForest1;
     if (completed < 7) return l.profileForest2;
@@ -842,7 +888,7 @@ class _ForestPainter extends CustomPainter {
 
     // Moon/sun
     final moonPaint = Paint()
-      ..color = Colors.white.withOpacity(0.9)
+      ..color = Colors.white.withValues(alpha: 0.9)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(size.width - 28, 22), 12, moonPaint);
     // Crescent
@@ -853,7 +899,7 @@ class _ForestPainter extends CustomPainter {
 
     // Stars
     final starPaint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
+      ..color = Colors.white.withValues(alpha: 0.8)
       ..style = PaintingStyle.fill;
     final starPositions = [
       Offset(size.width * 0.15, size.height * 0.12),
@@ -923,7 +969,7 @@ class _StarPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rng = math.Random(7);
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.7)
+      ..color = Colors.white.withValues(alpha: 0.7)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < 40; i++) {

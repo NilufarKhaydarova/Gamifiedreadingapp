@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../app.dart' show AppLocalizationsX;
+import '../../../app.dart' show AppLocalizations, AppLocalizationsX;
 import '../../../core/theme/app_colors.dart';
 import '../../providers/curriculum_provider.dart';
 import '../library/add_book_sheet.dart';
@@ -186,7 +186,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildHeader(appLocalizations) {
+  Widget _buildHeader(AppLocalizations appLocalizations) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -219,7 +219,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildTextField(appLocalizations) {
+  Widget _buildTextField(AppLocalizations appLocalizations) {
     return TextField(
       controller: _controller,
       autofocus: true,
@@ -261,7 +261,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildSuggestions(appLocalizations) {
+  Widget _buildSuggestions(AppLocalizations appLocalizations) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -293,7 +293,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildGenerateButton(appLocalizations) {
+  Widget _buildGenerateButton(AppLocalizations appLocalizations) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -321,7 +321,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildOrDivider(appLocalizations) {
+  Widget _buildOrDivider(AppLocalizations appLocalizations) {
     return Row(
       children: [
         const Expanded(child: Divider()),
@@ -337,7 +337,7 @@ class _TopicInputScreenState extends ConsumerState<TopicInputScreen>
     );
   }
 
-  Widget _buildUploadBookButton(appLocalizations) {
+  Widget _buildUploadBookButton(AppLocalizations appLocalizations) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
