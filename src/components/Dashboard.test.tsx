@@ -235,12 +235,15 @@ describe('Dashboard', () => {
       expect(screen.getByText(/Discuss, quiz, and deepen/)).toBeInTheDocument();
     });
 
-    it('should show Log Reading Session card', () => {
+    it('should show View Reading Plan card that navigates to plan', () => {
       const router = createRouter(<Dashboard />);
       render(<RouterProvider router={router} />);
 
-      expect(screen.getByText('Log Reading Session')).toBeInTheDocument();
-      expect(screen.getByText(/Track your progress and earn XP/)).toBeInTheDocument();
+      expect(screen.getByText('View Reading Plan')).toBeInTheDocument();
+      expect(screen.getByText(/See your complete daily reading schedule/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText('View Reading Plan'));
+      expect(router.state.location.pathname).toBe('/plan');
     });
   });
 
